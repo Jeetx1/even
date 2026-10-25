@@ -72,13 +72,21 @@ window.THEME_FX = {
     const markFloat = () => $$('.card').forEach(markOne);
     markFloat();
     let rt = null; api.on(window, 'resize', () => { clearTimeout(rt); rt = api.later(markFloat, 200); });
+    /* a card is judged again when the pointer enters it: a page drawn after the start (a table filled in later) must not
+       lift or press like a small tile because it was empty when the look started */
+    let overCard = null;
+    api.on(document, 'pointerover', e => {
+      const c = e.target.closest && e.target.closest('.card');
+      if (c && c !== overCard){ overCard = c; markOne(c); }
+    }, { passive: true });
     const CONTROLS = 'button, a, input, select, textarea, label, [role="button"], [role="tab"], .segmented, .tabs, .dd, summary';
     let pressed = null;
     const release = () => { if (pressed){ pressed.classList.remove('is-pressed'); pressed = null; } };
     api.on(document, 'pointerdown', e => {
       if (REDUCED || !api.isOn('float') || e.button > 0) return;
-      const c = e.target.closest && e.target.closest('.card.is-float');
-      if (!c || e.target.closest(CONTROLS)) return;
+      const c = e.target.closest && e.target.closest('.card');
+      if (c) markOne(c);
+      if (!c || !c.classList.contains('is-float') || e.target.closest(CONTROLS)) return;
       pressed = c; c.classList.add('is-pressed');
     }, { passive: true });
     ['pointerup', 'pointercancel', 'dragstart'].forEach(t => api.on(document, t, release, { passive: true }));
@@ -673,8 +681,12 @@ function lookButton(){
     const r = btn.getBoundingClientRect(), w = Math.min(320, window.innerWidth - 16);
     pop.style.width = w + 'px';
     pop.style.left = Math.max(8, Math.min(r.right - w, window.innerWidth - w - 8)) + 'px';
-    pop.style.top = (r.bottom + 8) + 'px';
-    pop.style.maxHeight = Math.max(200, window.innerHeight - r.bottom - 20) + 'px';
+    // opens upwards when the button sits low (e.g. at the foot of a side navigation), like the dropdowns
+    const below = window.innerHeight - r.bottom - 20, above = r.top - 20, up = below < 360 && above > below;
+    pop.classList.toggle('is-up', up);
+    pop.style.top = up ? 'auto' : (r.bottom + 8) + 'px';
+    pop.style.bottom = up ? (window.innerHeight - r.top + 8) + 'px' : 'auto';
+    pop.style.maxHeight = Math.max(200, up ? above : below) + 'px';
   }
   function draw(){
     if (!pop) return;

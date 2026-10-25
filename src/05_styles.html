@@ -1,643 +1,583 @@
-<!-- EVEN · app styles, tokens only -->
+<!-- EVEN · tool styles: what EVEN needs beyond the Design Lab components, tokens only (interface rebuilt on the kit, 25.10.2026) -->
 <style id="tool">
-/* =====================================================================
-   EVEN · tool styles. The accounting tool keeps its own structure (sidebar for its fifteen pages,
-   statements, booking mask); everything here is drawn with the theme tokens + the tool tokens.
-   The names the tool's markup already uses are pointed at the design tokens first.
-   ===================================================================== */
-:root{
-  --papier:var(--surface); --papier2:var(--ev-panel); --band:var(--ev-band);
-  --text2:var(--text-2); --text3:var(--text-3);
-  --rule:var(--ev-rule); --rule2:var(--ev-rule-2);
-  --rot:var(--danger); --rotbg:var(--danger-soft); --amber:var(--warning); --amberbg:var(--ev-warn-soft); --gruen:var(--ev-ok); --gruenbg:var(--ev-ok-soft);
-  --tinte:var(--accent-text); --tinte2:var(--accent); --tinte3:var(--accent);
-  --sans:var(--font-ui); --anzeige:var(--font-display);
-  --r-blatt:var(--r-card); --r-feld:var(--r-control);
-  --ink-2:var(--text-2); --ink-4:var(--text-4); --num:var(--font-num-table);
-}
-body{font-size:14px;line-height:1.45}
-.num,td.num,th.num{font-variant-numeric:tabular-nums lining-nums;text-align:right;white-space:nowrap}
+/* EVEN · tool styles of the interface rebuild (preview). Tokens only, no hex colours; everything else is a kit component.
+   EVEN's own pieces: the side navigation (16 pages, the computer is the main device), the page head with the period
+   controls, the balance picture, the month chart, the journal rows. */
+
+/* ---------------------------------------------------------------- shell: side navigation + main */
+.ev{position:relative;z-index:1;display:grid;grid-template-columns:248px minmax(0,1fr);min-height:100vh}
+.ev-side{position:sticky;top:0;height:100vh;display:flex;flex-direction:column;gap:14px;padding:18px 14px 14px;
+  background:var(--header-bg);border-right:var(--bw) solid var(--header-border);-webkit-backdrop-filter:var(--header-blur);backdrop-filter:var(--header-blur)}
+.ev-brand{display:flex;align-items:center;gap:12px;padding:2px 6px 6px}
+.ev-brand .app-icon{width:38px;height:38px;border-radius:var(--r-icon);flex:none;box-shadow:var(--shadow-icon);overflow:hidden}
+.ev-brand__text b{display:block;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-apptitle);letter-spacing:var(--ls-display);line-height:1.1}
+.ev-brand__text small{display:block;color:var(--text-3);font-size:12px;margin-top:2px}
+.ev-nav{flex:1;overflow-x:hidden;overflow-y:auto;display:grid;align-content:start;gap:2px;padding:0 2px;margin:0 -2px}
+.ev-nav__group{font-size:var(--label-size);font-weight:var(--label-weight);letter-spacing:var(--label-spacing);text-transform:var(--label-case);color:var(--text-3);padding:14px 10px 6px}
+.ev-nav__item{display:flex;align-items:center;gap:10px;width:100%;height:36px;padding:0 10px;border-radius:var(--r-control);color:var(--text-2);font-size:14px;font-weight:500;text-align:left;
+  transition:background var(--dur-fast),color var(--dur-fast)}
+.ev-nav__item svg{flex:none;opacity:.85}
+.ev-nav__item span:not(.soon){flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ev-nav__item:hover{background:var(--row-hover);color:var(--text)}
+.ev-nav__item.is-active{background:var(--tab-active-bg);color:var(--tab-active-text);box-shadow:var(--tab-active-shadow);font-weight:var(--fw-tab)}
+.ev-nav__item.is-active svg{opacity:1}
+.ev-nav__item .soon{flex:none;font-size:10.5px;color:var(--text-4);font-weight:600;white-space:nowrap}
+.ev-side__foot{display:grid;gap:10px;padding-top:12px;border-top:var(--bw) solid var(--hairline)}
+.ev-file{color:var(--text-3);font-size:12px;padding:0 4px;overflow-wrap:anywhere}
+.ev-side__actions{display:flex;align-items:center;gap:6px}
+.ev-side__actions .save{flex:1}
+.ev-main{min-width:0;padding:22px clamp(16px,3vw,40px) 64px;max-width:1280px;width:100%}
+.ev-scrim{display:none}
+
+/* ---------------------------------------------------------------- page head: eyebrow + title, period controls on the right */
+.ev-head{display:flex;align-items:flex-end;gap:14px 18px;flex-wrap:wrap;margin-bottom:var(--head-gap)}
+.ev-head__title{flex:1;min-width:200px}
+.ev-head__title .section__title{margin:2px 0 0}
+.ev-head__ctl{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ev-menu{display:none}
+.ev-page[hidden]{display:none}
+
+/* ---------------------------------------------------------------- Overview */
+.ev-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}
+.delta--flat{background:var(--neutral-soft);color:var(--text-2)}
+.ev-pair{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:var(--gap);margin-top:var(--gap)}
+/* the balance picture: assets against liabilities and equity, one bar each, sections in proportion */
+.ev-bal{display:grid;gap:8px;margin:2px 0 16px}
+.ev-bal__row{display:grid;grid-template-columns:118px minmax(0,1fr) auto;align-items:center;gap:12px;font-size:12.5px;color:var(--text-2)}
+.ev-bal__bar{display:flex;height:14px;border-radius:var(--r-chip);overflow:hidden;background:var(--neutral-soft)}
+.ev-bal__bar i{display:block;height:100%;transform-origin:0 50%;animation:evGrow var(--dur-chart) var(--ease) both}
+.ev-bal__sum{font-family:var(--font-num-table);font-variant-numeric:tabular-nums;font-weight:600;color:var(--text)}
+@keyframes evGrow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+.ev-bs{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:4px 22px}
+.ev-bs h3{margin:0 0 6px;font-size:var(--label-size);font-weight:var(--label-weight);letter-spacing:var(--label-spacing);text-transform:var(--label-case);color:var(--text-3)}
+.ev-bs__row{display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:var(--bw) solid var(--hairline);font-size:13.5px}
+.ev-bs__row span:first-child{display:flex;align-items:center;gap:8px;min-width:0;color:var(--text-2)}
+.ev-bs__row i{width:8px;height:8px;border-radius:2px;flex:none}
+.ev-bs__row b,.ev-bs__row span:last-child{font-family:var(--font-num-table);font-variant-numeric:tabular-nums;white-space:nowrap}
+.ev-bs__row.sum{border-bottom:0;font-weight:var(--fw-strong)}
+.ev-bs__row.sum span:first-child{color:var(--text)}
 .neg{color:var(--danger)}
-.mut{color:var(--text-3)}
-.klein{font-size:12.5px}
-.nr{font-variant-numeric:tabular-nums;font-weight:600;color:var(--text-2);letter-spacing:.01em}
-.ambient{transition:opacity 1.2s ease}
+/* month chart: income and expenses as bars, the result as a dashed line */
+.ev-mm .bar.inc{fill:var(--ev-inc)} .ev-mm .bar.exp{fill:var(--ev-exp)}
+.ev-mm .res{stroke:var(--ev-res)}
+.ev-mm .ev-mm-dot{fill:var(--ev-res)}
+/* the chart tip: a title, then label and value per line */
+.ev-tip{min-width:150px}
+.ev-tip__row{display:flex;justify-content:space-between;gap:16px}
+.ev-tip__row b{font-family:var(--font-num-table);font-variant-numeric:tabular-nums;font-weight:600}
+.chart .ev-hover-dot{fill:var(--surface-solid);stroke:var(--text);stroke-width:2;pointer-events:none}
+.chart .cross{pointer-events:none}
+.ev-mm .zero{stroke:var(--chart-axis);stroke-opacity:.5}
 
-/* ---------- start ---------- */
-.start{position:relative;z-index:1;min-height:100vh;display:none;align-items:center;justify-content:center;padding:calc(40px + var(--sat)) 18px calc(40px + var(--sab))}
-.start.on{display:flex}
-.startkarte{width:100%;max-width:560px;color:var(--text)}
-.startkarte .marke{display:flex;flex-direction:column;align-items:flex-start;gap:18px;margin-bottom:28px}
-.startkarte .marke .app-icon{width:88px;height:88px;border-radius:calc(var(--r-icon) * 2.3)}
-.startkarte h1{font-family:var(--font-display);font-weight:var(--fw-display);font-size:42px;letter-spacing:var(--ls-display);margin:0;line-height:1}
-.startkarte .lead{color:var(--text-2);margin:10px 0 0;font-size:15px;max-width:44ch}
-.wahl{display:grid;gap:10px;margin-top:8px}
-.wahl button{display:flex;gap:16px;align-items:center;text-align:left;width:100%;padding:16px 18px;background:var(--surface);border:var(--bw) solid var(--border);border-radius:calc(var(--r-card) * .8);
-  color:var(--text);box-shadow:var(--shadow-card);-webkit-backdrop-filter:var(--backdrop);backdrop-filter:var(--backdrop);transition:border-color var(--dur-fast),transform var(--dur) var(--ease-spring)}
-.wahl button:hover{border-color:var(--border-strong)}
-.wahl button:active{transform:scale(var(--press))}
-.wahl b{display:block;font-size:15px;font-weight:600}
-.wahl span span{display:block;font-size:12.5px;color:var(--text-3);margin-top:2px}
-.wahl .ic{flex:none;width:38px;height:38px;border-radius:var(--r-control);display:grid;place-items:center;background:var(--accent-soft);color:var(--accent-text)}
-.startfuss{margin-top:22px;font-size:12.5px;color:var(--text-3);line-height:1.55;max-width:60ch}
-.startlook{margin-top:18px;max-width:300px}
-.startlook .row-label{display:block;margin-bottom:8px}
+/* ---------------------------------------------------------------- Journal */
+.ev-tools{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:var(--gap)}
+.ev-search{flex:1;min-width:240px;margin:0}
+.ev-jo .table td{vertical-align:top}
+.ev-jo .table td.d{white-space:nowrap;color:var(--text-2)}
+.ev-jo .table td.k{color:var(--text-2);font-size:13px}
+.ev-jo .table td.k small{display:block;color:var(--text-3);font-size:12px}
+.ev-jo .table .z td{padding-top:0;border-top:0;color:var(--text-3);font-size:12.5px}
+.ev-hit{background:var(--accent-soft);color:var(--accent-text);border-radius:3px;padding:0 2px}
+.ev-jo .table td.a,.ev-jo .table th.a{width:76px;text-align:right;padding-top:6px;padding-bottom:6px}
+.ev-jo .table td.a .btn{height:26px;opacity:0;transition:opacity var(--dur-fast)}
+.ev-jo .table tr:hover td.a .btn,.ev-jo .table td.a .btn:focus-visible{opacity:1}
+@media (hover:none){ .ev-jo .table td.a .btn{opacity:1} }
+.ev-jo .table tr.is-current td{background:var(--accent-soft)}
+.ev-jo .table tr.is-new td,.ev-recent.is-new{animation:evNew 1.8s var(--ease)}
+@keyframes evNew{from{background:var(--accent-soft)}}
 
-/* ---------- shell: a frosted sidebar for the fifteen pages, the work area beside it ---------- */
-.shell{position:relative;z-index:1;display:none;min-height:100vh}
-.shell.on{display:grid;grid-template-columns:262px minmax(0,1fr)}
-.navleiste{position:sticky;top:0;height:100vh;padding:calc(16px + var(--sat)) 14px calc(16px + var(--sab));display:flex;flex-direction:column;gap:12px;color:var(--text);
-  background:var(--header-bg);border-right:var(--bw) solid var(--header-border);-webkit-backdrop-filter:var(--header-blur);backdrop-filter:var(--header-blur);overflow-y:auto;z-index:20;scrollbar-width:thin}
-.brand{display:flex;align-items:center;gap:11px;padding:2px 6px 0}
-.brand .app-icon{width:34px;height:34px}
-.brand b{font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-apptitle);letter-spacing:var(--ls-display);line-height:1}
-.mandant{display:flex;flex-direction:column;gap:2px;padding:4px 6px 12px;border-bottom:var(--bw) solid var(--hairline)}
-.mandant input{background:transparent;border:0;color:var(--text);font-family:var(--font-ui);font-size:14.5px;font-weight:600;padding:3px 6px;margin:0 -6px;width:calc(100% + 12px);border-radius:var(--r-control);outline:none}
-.mandant input:focus{box-shadow:0 0 0 3px var(--focus-ring);background:var(--field-bg-focus)}
-.mandant small{color:var(--text-3);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-nav.haupt{display:flex;flex-direction:column;gap:1px}
-nav.haupt .gruppe{font-size:var(--label-size);font-weight:var(--label-weight);letter-spacing:var(--label-spacing);text-transform:var(--label-case);color:var(--text-3);padding:14px 10px 5px}
-nav.haupt button{display:flex;align-items:center;gap:11px;width:100%;text-align:left;color:var(--tab-text);padding:8px 10px;border-radius:var(--r-control);font-size:13.5px;font-weight:var(--fw-tab);
-  position:relative;transition:background var(--dur-fast),color var(--dur-fast),transform var(--dur) var(--ease-spring)}
-nav.haupt button svg{flex:none;opacity:.85}
-nav.haupt button:hover{background:var(--row-hover);color:var(--text)}
-nav.haupt button:active{transform:scale(.98)}
-nav.haupt button.on{background:var(--tab-active-bg);color:var(--tab-active-text);box-shadow:var(--tab-active-shadow)}
-.status{margin-top:auto;display:flex;flex-direction:column;gap:8px}
-.pruefstreifen{font-size:12px;color:var(--text-2);padding:10px 12px;border-radius:var(--r-control);background:var(--ev-panel);border:var(--bw) solid var(--border);display:grid;gap:4px}
-.pruefstreifen .z{display:flex;justify-content:space-between;gap:8px}
-.pruefstreifen b{color:var(--text);font-weight:600;font-variant-numeric:tabular-nums}
-.pruefstreifen .z.schief{color:var(--danger)}
-.punkt{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--ev-ok);margin-right:6px;box-shadow:0 0 0 3px var(--ev-ok-soft)}
-.punkt.schlecht{background:var(--danger);box-shadow:0 0 0 3px var(--danger-soft)}
-.knopfreihe{display:flex;gap:6px}
-.knopfreihe .save{flex:1}
+/* ---------------------------------------------------------------- shared small pieces */
+.ev-chip-sm{height:20px;padding:0 7px;margin-left:6px;font-size:11px;vertical-align:1px}
+.ev-chip-sm.is-ok{background:var(--ev-ok-soft);color:var(--ev-ok)}
+.ev-chip-sm.is-warn{background:var(--ev-warn-soft);color:var(--ev-warn)}
+.ev-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ev-klick{cursor:pointer}
+.ev-fx{color:var(--text-3);font-size:12px}
+.field__hint.neg{color:var(--danger)}
+.modal__actions.ev-stack{flex-direction:column;align-items:stretch}
+.modal:has(.ev-modal-table){max-width:640px}
+.modal__text .ev-scroll{margin-top:14px;border-radius:var(--r-inner);border:var(--bw) solid var(--table-border)}
+.ev-modal-table{font-size:13px}
+.ev-modal-table td{padding:8px 12px}
+.ev-modal-table tr.sum td{border-bottom:0}
 
-/* the file menu: the shared rounded menu, opening upwards from the sidebar */
-.knopfreihe{position:relative}
-.dmenu{position:static;flex:none}
-.dmenu>summary{list-style:none;height:var(--btn-h-sm);width:var(--btn-h-sm);display:grid;place-items:center;border-radius:var(--r-btn);border:var(--bw) solid var(--border);color:var(--text-2);cursor:pointer;
-  transition:color var(--dur-fast),border-color var(--dur-fast)}
-.dmenu>summary:hover{color:var(--text);border-color:var(--border-strong)}
-.dmenu>summary::-webkit-details-marker{display:none}
-.dmenu[open]>summary{color:var(--text);border-color:var(--border-strong)}
-.dmenu .panel{position:absolute;left:0;right:0;bottom:calc(100% + 8px);width:auto;max-width:260px;background:linear-gradient(var(--menu-bg),var(--menu-bg)),var(--surface-solid);color:var(--text);border:var(--bw) solid var(--border);border-radius:var(--r-menu);
-  box-shadow:var(--shadow-pop);-webkit-backdrop-filter:var(--backdrop);backdrop-filter:var(--backdrop);padding:6px;z-index:60;transform-origin:20% 100%;animation:menuInUp var(--dur) var(--ease-spring) both}
-.dmenu .panel button{display:block;width:100%;text-align:left;padding:8px 12px;border-radius:var(--r-menu-item);font-size:13.5px;color:var(--text);transition:background var(--dur-fast)}
-.dmenu .panel button:hover{background:var(--neutral-soft)}
-.dmenu .panel hr{border:0;border-top:var(--bw) solid var(--hairline);margin:5px 4px}
+/* ---------------------------------------------------------------- Book: the card on the left, the panels beside it */
+.ev-book{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:var(--gap);align-items:start}
+.ev-book__main,.ev-book__side{display:grid;gap:var(--gap);min-width:0}
+.ev-mask{position:relative;overflow:visible}
+.ev-mask.is-booked{animation:evBooked 1s var(--ease)}
+@keyframes evBooked{30%{box-shadow:0 0 0 4px var(--ev-ok-soft)}}
+/* the seal of the stamp effect (07_effects turns its ring) */
+.siegel{position:absolute;left:50%;top:44%;width:190px;height:190px;margin:-95px 0 0 -95px;pointer-events:none;opacity:0;z-index:30}
+.siegel.los{animation:evSeal 1.25s cubic-bezier(.2,.8,.2,1) forwards}
+@keyframes evSeal{0%{opacity:0;transform:scale(1.5) rotate(-18deg)}30%{opacity:1;transform:scale(1) rotate(0)}70%{opacity:1;transform:scale(1) rotate(0)}100%{opacity:0;transform:scale(.96) rotate(2deg)}}
+.ev-banner{margin:0 0 16px;padding:10px 13px;border-radius:var(--r-control);background:var(--accent-soft);color:var(--text);font-size:13px;line-height:1.5}
+/* quick entry: date, text, amount; then debit → credit */
+.ev-quick{display:grid;grid-template-columns:150px minmax(0,1fr) 170px;grid-template-areas:"datum text betrag" "konten konten konten";gap:12px 14px}
+.ev-quick__datum{grid-area:datum} .ev-quick__text{grid-area:text} .ev-quick__betrag{grid-area:betrag}
+/* Lines: date and text stay, amount and accounts are the lines' own */
+.ev-mask.is-lines .ev-quick{grid-template-areas:"datum text text";margin-bottom:6px}
+.ev-mask.is-lines .ev-quick__betrag,.ev-mask.is-lines .ev-quick__konten{display:none}
+.ev-quick__konten{grid-area:konten;display:grid;grid-template-columns:minmax(0,1fr) 22px minmax(0,1fr);gap:0 10px;align-items:start}
+.ev-quick__to{padding-top:38px;text-align:center;color:var(--text-3);font-size:16px}
+.ev-quick .field__hint,.ev-split .field__hint,.ev-lines .field__hint{min-height:16px}
+.ev-links{display:flex;gap:10px}
+.ev-link{font-size:11.5px;font-weight:600;color:var(--accent);text-transform:none;letter-spacing:0}
+.ev-link:hover{text-decoration:underline}
+.ev-kinfo{display:flex;justify-content:space-between;gap:10px}
+.ev-kinfo span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ev-kinfo b{font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--text-2)}
+.ev-kinfo b.neg{color:var(--danger)}
+.ev-fxrow{display:grid;grid-template-columns:180px 130px minmax(0,1fr);gap:14px;align-items:end;margin-top:12px}
+.ev-fxrow .note{margin:0 0 12px}
+/* the split side and the lines: a quiet panel, smaller fields */
+.ev-split{display:grid;gap:8px;margin-top:14px;padding:14px;border-radius:var(--r-inner);background:var(--ev-panel);border:var(--bw) solid var(--ev-rule)}
+.ev-split__head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:13.5px;margin-bottom:2px}
+.ev-rest.is-zero{background:var(--ev-ok-soft);color:var(--ev-ok)}
+.ev-rest.is-open{background:var(--ev-warn-soft);color:var(--ev-warn)}
+.ev-rest.is-over{background:var(--danger-soft);color:var(--danger)}
+.ev-split__row{display:grid;grid-template-columns:minmax(0,1.4fr) 130px minmax(0,1fr) 36px;gap:8px;align-items:start}
+.ev-split__row.has-fx{grid-template-columns:minmax(0,1.3fr) 100px 80px 120px minmax(0,1fr) 36px}
+.ev-split .input,.ev-lines .input{height:40px;font-size:14px}
+.ev-split .btn--icon,.ev-lines .btn--icon{margin-top:4px}
+.ev-lines{display:grid;gap:8px}
+.ev-lines__head,.ev-lines__row{display:grid;grid-template-columns:minmax(0,1.5fr) 120px 120px minmax(0,1fr) 36px;gap:8px;align-items:start}
+.ev-lines__head{font-size:var(--label-size);font-weight:var(--label-weight);letter-spacing:var(--label-spacing);text-transform:var(--label-case);color:var(--text-3)}
+.ev-lines__head .r{text-align:right}
+.ev-lines__fx{display:flex;gap:6px;margin-top:4px}
+.ev-lines__fx .input{height:34px}
+.ev-lines > .btn{justify-self:start}
+/* the posting as it will be booked, with the balance beam */
+.ev-post{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px 20px;align-items:center;margin-top:18px;padding:14px 16px;border-radius:var(--r-inner);background:var(--ev-panel);border:var(--bw) solid var(--ev-rule)}
+.ev-post__sides{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:4px 14px;align-items:start;min-width:0}
+.ev-post__side{min-width:0}
+.ev-post__title{font-size:var(--label-size);font-weight:var(--label-weight);letter-spacing:var(--label-spacing);text-transform:var(--label-case);color:var(--text-3);margin-bottom:4px}
+.ev-post__line{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:2px 0;font-size:13.5px;line-height:1.35}
+.ev-post__line > span:first-child{min-width:0;overflow-wrap:anywhere}
+.ev-post__line small{color:var(--text-3)}
+.ev-post__line .n{font-family:var(--font-num-table);font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}
+.ev-post__to{align-self:center;color:var(--text-3);font-style:italic;font-size:13px}
+.ev-post__none{color:var(--text-4)}
+.ev-post__empty{grid-column:1/-1;margin:0;color:var(--text-3);font-size:13px}
+.ev-beam{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;color:var(--text-3);transition:color var(--dur) var(--ease)}
+.ev-beam.is-even{color:var(--ev-ok)} .ev-beam.is-off{color:var(--ev-warn)}
+.ev-beam svg{flex:none}
+.ev-beam__arm{transform-box:view-box;transform-origin:66px 20px;transition:transform .5s var(--ease-spring)}
+.ev-beam__vals{display:grid;grid-template-columns:auto auto;gap:2px 12px;font-size:12.5px;color:var(--text-3)}
+.ev-beam__vals b{font-family:var(--font-num-table);font-variant-numeric:tabular-nums;text-align:right;color:var(--text);font-weight:600}
+.ev-beam__verdict{min-width:92px;font-weight:600;font-size:13px}
+/* the beam sits beside the posting where the card is wide, below it where it is narrow (a container query on the card) */
+.ev-mask{container-type:inline-size}
+@container (max-width:700px){ .ev-post{grid-template-columns:minmax(0,1fr)} .ev-beam{padding-top:10px;border-top:var(--bw) solid var(--ev-rule)} }
+/* the spread */
+.ev-vt{margin-top:16px;padding-top:10px;border-top:var(--bw) solid var(--hairline)}
+.ev-vt__panel{display:grid;gap:12px;margin-top:8px}
+.ev-vt__fields{display:grid;grid-template-columns:170px 110px minmax(0,1fr);gap:14px;align-items:end}
+.ev-vt__fields .note{margin:0 0 4px}
+.ev-vt__table{max-height:290px;overflow:auto;border-radius:var(--r-inner);border:var(--bw) solid var(--table-border)}
+.ev-vt__table .table td{padding:7px 12px}
+#vt-vorschau .note{margin:8px 0 0}
+/* the checks: problems one by one, or one calm line */
+.ev-checks{display:grid;gap:6px;margin-top:16px}
+.ev-check{display:flex;align-items:flex-start;gap:10px;font-size:13px;line-height:1.45;color:var(--text-2)}
+.ev-check__i{width:18px;height:18px;flex:none;margin-top:1px;border-radius:50%;display:grid;place-items:center}
+.ev-check.is-fehler .ev-check__i{background:var(--danger-soft);color:var(--danger)}
+.ev-check.is-warn .ev-check__i{background:var(--ev-warn-soft);color:var(--ev-warn)}
+.ev-check.is-ok .ev-check__i{background:var(--ev-ok-soft);color:var(--ev-ok)}
+.ev-check.is-ok{color:var(--text)}
+.ev-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:18px}
+.ev-actions .spacer{flex:1}
+.btn kbd{font:inherit;font-size:11px;line-height:1;padding:3px 6px;border-radius:5px;background:color-mix(in srgb,currentColor 16%,transparent)}
+#bu-ok.is-new{animation:evReady .6s var(--ease-spring)}
+@keyframes evReady{40%{transform:scale(1.045)}}
+/* the side: balance of the account in focus, recent bookings, spreads */
+.ev-bal-now{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;padding:2px 0 12px;margin-bottom:6px;border-bottom:var(--bw) solid var(--hairline)}
+.ev-bal-now span{font-size:13px;color:var(--text-2)}
+.ev-bal-now small{display:block;font-size:12px;color:var(--text-3)}
+.ev-bal-now b{font-family:var(--font-display);font-weight:var(--fw-display);font-size:24px;letter-spacing:var(--ls-display);font-variant-numeric:tabular-nums;white-space:nowrap}
+#bu-verlauf-saldo .note{margin:-4px 0 8px;text-align:right}
+.ev-recents{display:grid;margin:0 -6px}
+.ev-recent{display:grid;grid-template-columns:46px minmax(0,1fr) auto;grid-template-areas:"d t n" "d k a";gap:1px 10px;align-items:center;padding:8px 6px;border-radius:var(--r-control);cursor:pointer}
+.ev-recent:hover,.ev-recent:focus-visible{background:var(--row-hover);outline:none}
+.ev-recent .d{grid-area:d;align-self:start;padding-top:2px;font-size:12px;color:var(--text-3);font-variant-numeric:tabular-nums}
+.ev-recent .t{grid-area:t;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13.5px}
+.ev-recent .n{grid-area:n;font-family:var(--font-num-table);font-variant-numeric:tabular-nums;font-weight:600;font-size:13.5px;white-space:nowrap}
+.ev-recent .k{grid-area:k;font-size:12px;color:var(--text-3)}
+.ev-recent .btn{grid-area:a;justify-self:end;height:24px;padding:0 8px;opacity:0;transition:opacity var(--dur-fast)}
+.ev-recent:hover .btn,.ev-recent .btn:focus-visible{opacity:1}
+@media (hover:none){ .ev-recent .btn{opacity:1} }
+.ev-plans{display:grid;margin:0 -6px}
+.ev-offer{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:0 6px 8px;padding:10px 12px;border-radius:var(--r-control);background:var(--ev-warn-soft);font-size:13px;line-height:1.45}
+.ev-plan{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 10px;padding:10px 6px;border-radius:var(--r-control);cursor:pointer}
+.ev-plan:hover,.ev-plan:focus-visible{background:var(--row-hover);outline:none}
+.ev-plan + .ev-plan{border-top:var(--bw) solid var(--hairline)}
+.ev-plan .t{font-size:13.5px;min-width:0}
+.ev-plan .n{font-family:var(--font-num-table);font-variant-numeric:tabular-nums;font-weight:600;font-size:13.5px}
+.ev-plan .progress{grid-column:1/-1;height:4px}
+.ev-plan .m{grid-column:1/-1;font-size:12px;color:var(--text-3)}
+.ev-plans > .note{margin:0 6px}
+.ev-latest .table{min-width:620px}
 
-/* ---------- work area ---------- */
-.arbeit.wrap{max-width:none;margin:0;min-width:0;padding:0 28px calc(60px + var(--sab))}
-.kopf{position:sticky;top:0;z-index:15;display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:calc(14px + var(--sat)) 0 12px;margin-bottom:6px}
-.kopf::before{content:"";position:absolute;inset:0 -28px;z-index:-1;background:var(--header-bg);border-bottom:var(--bw) solid var(--header-border);-webkit-backdrop-filter:var(--header-blur);backdrop-filter:var(--header-blur)}
-.kopf h1{font-family:var(--font-display);font-weight:var(--fw-display);font-size:calc(var(--fs-h2) * .82);letter-spacing:var(--ls-display);line-height:1.1;color:var(--text);margin:0;margin-right:auto}
-.menuknopf{display:none;width:var(--btn-h-sm);height:var(--btn-h-sm);border-radius:var(--r-btn);border:var(--bw) solid var(--border);color:var(--text);place-items:center}
-.ctl{display:flex;align-items:center;gap:8px}
-.ctl select{height:36px;border-radius:var(--r-seg);border:var(--bw) solid var(--field-border);background-color:var(--field-bg);color:var(--text);font-size:13.5px;font-weight:600;padding:0 36px 0 14px;max-width:260px;cursor:pointer;
-  background-image:linear-gradient(45deg,transparent 50%,var(--text-2) 50%),linear-gradient(135deg,var(--text-2) 50%,transparent 50%);
-  background-position:calc(100% - 19px) 52%,calc(100% - 14px) 52%;background-size:5px 5px,5px 5px;background-repeat:no-repeat;transition:border-color var(--dur-fast)}
-.ctl select:hover{border-color:var(--field-border-hover)}
-.ctl select.is-open,.ctl select:focus{border-color:var(--focus);outline:none}
-.ctl select option{color:var(--text);background:var(--surface-solid)}
-.kopf .segmented{height:auto}
-.kopf .look-btn{margin-left:2px}
-.segmented button.on{color:var(--seg-active-text)}
-/* the small segmented pills the tool draws itself (statements): no travelling thumb, the active cell is filled */
-.seg{display:inline-flex;height:36px;padding:3px;gap:2px;border-radius:var(--r-seg);background:var(--seg-bg);border:var(--bw) solid var(--border)}
-.seg button{border-radius:var(--r-seg-in);color:var(--text-2);padding:0 13px;font-size:13px;font-weight:600;letter-spacing:var(--ls-tab);transition:background var(--dur-fast),color var(--dur-fast)}
-.seg button:hover{color:var(--text)}
-.seg button.on{background:var(--seg-active-bg);color:var(--seg-active-text);box-shadow:var(--seg-active-shadow)}
-.untertitel{color:var(--text-3);font-size:13px;margin:4px 0 16px}
+/* the pickers: accounts (number, name, balance, group) and earlier texts */
+.ev-pick .menu__item{min-height:0;white-space:normal}
+.ev-pick .menu__item.is-active{background:var(--accent-soft)}
+.ev-pick--konto .menu__item{display:grid;grid-template-columns:52px minmax(0,1fr) auto;grid-template-areas:"nr nm v" "nr g g";gap:0 10px;align-items:baseline;padding:6px 10px}
+.ev-pick--konto .nr{grid-area:nr;font-weight:700;font-variant-numeric:tabular-nums}
+.ev-pick--konto .nm{grid-area:nm;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ev-pick--konto .v{grid-area:v;font-size:12.5px;color:var(--text-2);font-variant-numeric:tabular-nums}
+.ev-pick--konto .g{grid-area:g;font-size:11.5px;color:var(--text-3)}
+.ev-pick--text .menu__item{display:grid;gap:1px;justify-content:stretch;padding:7px 10px}
+.ev-pick--text mark{background:var(--accent-soft);color:inherit;border-radius:3px;padding:0 1px}
+.ev-pick--text .kz{font-size:11.5px;color:var(--text-3)}
+.ev-pick__leer{padding:10px;font-size:13px;color:var(--text-3)}
 
-/* ---------- pages, sheets ---------- */
-.page{display:none}
-.page.on{display:block;animation:auf .3s var(--ease)}
-@keyframes auf{from{opacity:0;transform:translateY(6px)}}
-.blatt{margin-bottom:var(--gap);padding:22px 24px;color:var(--text)}
-.blatt.eng{padding:16px 18px}
-.blatt h2{font-family:var(--font-card-title);font-size:var(--fs-card-title);font-weight:var(--fw-card-title);letter-spacing:var(--ls-card-title);margin:0 0 4px}
-.blatt .hinweis{color:var(--text-2);font-size:13px;margin:0 0 14px;max-width:72ch}
-.raster{display:grid;gap:var(--gap)}
-.r-buchen{grid-template-columns:minmax(0,1fr) 340px;align-items:start}
-.zweispaltig{display:grid;grid-template-columns:1fr 1fr;gap:var(--gap)}
-.fehlerblatt{background:var(--danger-soft);border-left:3px solid var(--danger);color:var(--text);border-radius:var(--r-control);padding:14px 16px}
+/* ---------------------------------------------------------------- Ledger */
+.ev-hb-top{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:14px 24px}
+.ev-hb-konto{flex:1 1 320px;max-width:520px}
+.ev-hb-actions{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding-top:24px}
+/* the export: what it covers (the window of the page head), then the two formats */
+.ev-export{display:flex;align-items:center;gap:6px;padding:3px 3px 3px 12px;border-radius:var(--r-seg);border:var(--bw) solid var(--border);background:var(--field-bg)}
+.ev-export__what{display:grid;line-height:1.15;margin-right:6px}
+.ev-export__what small{font-size:10.5px;font-weight:var(--label-weight);letter-spacing:var(--label-spacing);text-transform:var(--label-case);color:var(--text-3)}
+.ev-export__what b{font-size:13px;font-weight:600;white-space:nowrap}
+.ev-export .btn{height:30px}
+.ev-tools .ev-export{margin-left:auto}
+.ev-hb-tools{margin-top:var(--gap)}
+.ev-hb-tools__t{flex:1;font-size:13px;color:var(--text-3)}
+/* opening and closing balance around the months */
+.ev-edge{display:flex;align-items:center;gap:14px;padding:12px 18px;border-radius:var(--r-card);background:var(--ev-panel);border:var(--bw) solid var(--ev-rule)}
+.ev-edge > span:first-child{flex:1;min-width:0}
+.ev-edge b{display:block;font-size:14px;font-weight:600}
+.ev-edge small{font-size:12px;color:var(--text-3)}
+.ev-edge__fx{font-size:12.5px;color:var(--text-2);font-variant-numeric:tabular-nums}
+.ev-edge__v{font-family:var(--font-num-table);font-variant-numeric:tabular-nums;font-weight:700;font-size:15px}
+.group__sum.neg{color:var(--danger)}
+.ev-figs{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin:18px 0 6px}
+.ev-fig{padding:12px 14px;border-radius:var(--r-inner);background:var(--ev-panel);border:var(--bw) solid var(--ev-rule)}
+.ev-fig__v{margin:4px 0 2px;font-family:var(--font-display);font-weight:var(--fw-display);font-size:22px;letter-spacing:var(--ls-display);font-variant-numeric:tabular-nums;white-space:nowrap}
+.ev-fig small{font-size:12px;color:var(--text-3)}
+.ev-hb-line{height:130px;margin-top:12px}
+.ev-hb-line .series{stroke:var(--ev-pay)}
+.ev-hb-line .area{fill:var(--ev-pay);opacity:.12}
+.ev-hb-line .zero{stroke:var(--chart-axis);stroke-opacity:.5}
+.ev-ledger .table td.bal{font-weight:700}
 
-/* ---------- tables: the ruled sheet ---------- */
-table{border-collapse:collapse;width:100%}
-th{font-size:var(--th-size);font-weight:var(--th-weight);letter-spacing:var(--th-spacing);text-transform:var(--th-case);color:var(--th-text);text-align:left;padding:8px 9px;border-bottom:var(--bw) solid var(--ev-rule-2);white-space:nowrap}
-th.num{text-align:right}
-td{padding:6px 9px;border-bottom:var(--bw) solid var(--ev-rule);vertical-align:top}
-table.band tbody tr:nth-child(even) td{background:var(--ev-band)}
-table.band tbody tr:hover td{background:var(--row-hover)}
-tr.klick{cursor:pointer}
-.tabelle{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -4px;padding:0 4px}
-/* Save to folder: one row per folder (name + Choose/Change) */
-.ordnerzeile{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-top:1px solid var(--hairline)}
+/* ---------------------------------------------------------------- Statements: one sheet, groups open to their accounts */
+.ev-st-bar{display:flex;flex-wrap:wrap;align-items:flex-end;gap:12px 14px;margin-bottom:var(--gap)}
+.ev-st-bar .field{gap:5px}
+.ev-st-bar .select--pill{min-width:150px}
+.ev-st-bar__opts{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;padding-bottom:6px}
+.ev-st-bar__opts .check{font-size:13px}
+.ev-st-bar .ev-export{margin-left:auto}
+.ev-st-figs{margin:0 0 var(--gap)}
+.ev-st-figs .ev-fig small{display:flex;align-items:center;gap:6px;min-height:22px}
+.ev-st-card{padding:0;overflow:hidden}
+.ev-st-card + .ev-st-card{margin-top:var(--gap)}
+.ev-st-card__head{padding:var(--pad-card) var(--pad-card) 6px;margin:0}
+.ev-st{font-size:13.5px}
+.ev-st td,.ev-st th{white-space:nowrap}
+.ev-st th.lbl,.ev-st td.lbl{width:100%;min-width:220px;white-space:normal}
+.ev-st th.per .ev-st__per{display:grid;justify-items:end;line-height:1.25}
+.ev-st th.per b{font-weight:700;color:var(--text);text-transform:none;letter-spacing:0}
+.ev-st th.per small{font-size:11px;font-weight:500;color:var(--text-3);text-transform:none;letter-spacing:0}
+.ev-st td.num{min-width:110px}
+.ev-st td.num.is-nil{color:var(--text-4)}
+.ev-st td.chg{color:var(--text-2);font-weight:500;font-family:var(--font-num-table)}
+.ev-st td.pct{color:var(--text-3);font-size:12.5px;min-width:64px}
+.ev-st tbody tr.is-part:hover,.ev-st tbody tr.is-section:hover,.ev-st tbody tr.is-gap:hover{background:none}
+.ev-st tr.is-part td{padding:20px 14px 8px;border-bottom:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:17px;letter-spacing:var(--ls-display)}
+.ev-st tr.is-section td{padding:16px 14px 6px;font-size:var(--label-size);font-weight:var(--label-weight);letter-spacing:var(--label-spacing);text-transform:var(--label-case);color:var(--accent)}
+.ev-st tr.is-gap td{padding:5px;border:0}
+.ev-st tr.has-kids{cursor:pointer}
+.ev-st tr.has-kids:focus-visible{outline:none;box-shadow:inset 0 0 0 1.5px var(--focus)}
+.ev-st .chev{display:inline-block;width:7px;height:7px;margin:0 10px 2px 2px;border-right:1.6px solid var(--text-3);border-bottom:1.6px solid var(--text-3);transform:rotate(-45deg);transition:transform var(--dur) var(--ease-spring)}
+.ev-st tr.is-open .chev{transform:rotate(45deg)}
+.ev-st__n{display:inline-block;margin-left:8px;padding:0 7px;border-radius:999px;background:var(--neutral-soft);font-size:11px;font-weight:600;color:var(--text-3);vertical-align:1px}
+.ev-st tr.is-group:not(.has-kids) td.lbl{padding-left:33px}
+/* accounts appear at once: on a statement a moving row is a distraction (owner, 25.10.) */
+.ev-st tr.is-leaf td{padding-top:7px;padding-bottom:7px;font-size:13px;color:var(--text-2)}
+.ev-st tr.is-leaf td.lbl{padding-left:52px}
+.ev-st .nr{margin-right:8px;font-size:12px;color:var(--text-3);font-variant-numeric:tabular-nums}
+.ev-st tr.is-sub td{font-weight:600;border-top:var(--bw) solid var(--border-strong)}
+.ev-st tr.is-res td{font-weight:700;border-top:var(--bw) solid var(--border-strong);background:var(--ev-band)}
+.ev-st tr.is-tot td{font-weight:700;font-size:14.5px;border-top:var(--bw) solid var(--text-2);border-bottom:3px double var(--text-2)}
+.ev-st__checks{display:grid;gap:6px;padding:14px 18px;border-top:var(--bw) solid var(--hairline)}
+.ev-st__checks:empty{display:none}
+.ev-st__foot{padding:12px 18px}
+.ev-check.is-info .ev-check__i{background:var(--accent-soft);color:var(--accent)}
+.ev-st-notes{margin-top:var(--gap)}
+.ev-st-notes .group__body .ev-st td.lbl{min-width:0}
+/* the wide sheets (Twelve months, Years): one even colour under every cell, the first column stays while it scrolls */
+.ev-wide{border-top:var(--bw) solid var(--hairline)}
+.ev-st--wide{background:var(--ev-sheet)}
+.ev-st--wide th,.ev-st--wide td{background:var(--ev-sheet)}
+.ev-st--wide thead th{background:var(--ev-sheet-head)}
+.ev-st--wide th.lbl,.ev-st--wide td.lbl{position:sticky;left:0;z-index:1;width:auto;min-width:230px;max-width:280px;box-shadow:1px 0 0 var(--hairline)}
+.ev-st--wide thead th.lbl{z-index:3}
+.ev-st--wide td.lbl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ev-st--wide td.num{min-width:92px;font-size:13px}
+.ev-st--wide .is-year{font-weight:700;box-shadow:inset 1px 0 0 var(--hairline)}
+.ev-st--wide tbody tr:hover td{background:color-mix(in srgb,var(--ev-sheet) 88%,var(--text) 6%)}
+.ev-st--wide tr.is-part:hover td,.ev-st--wide tr.is-section:hover td{background:var(--ev-sheet)}
+/* Twelve months on a computer: all twelve months and the year in view, whole francs (the exact amount on hover) */
+@media (min-width:900px){
+  .ev-st--fit{width:100%;table-layout:fixed}
+  .ev-st--fit th.lbl,.ev-st--fit td.lbl{width:180px;min-width:0;max-width:none}
+  .ev-st--fit th.is-year{width:82px}
+  .ev-st--fit th.num,.ev-st--fit td.num{min-width:0;padding-left:4px;padding-right:9px;font-size:12.5px}
+  .ev-st--fit tr.is-leaf td.lbl{padding-left:40px}
+}
+
+/* ---------------------------------------------------------------- Overview (Years), Investments, Fixed assets */
+.ev-pair--top{margin-top:0}
+.ev-gap-top{margin-top:var(--gap)}
+.ev-chart{height:260px}
+.ev-chart--short{height:200px}
+.ev-chart .bar.inc{fill:var(--ev-inc)} .ev-chart .bar.exp{fill:var(--ev-exp)}
+.ev-chart .ev-bar-plan{opacity:.38}
+.ev-chart .res{stroke:var(--ev-res)}
+.ev-chart .zero{stroke:var(--chart-axis);stroke-opacity:.5}
+.ev-chart .ev-dot{fill:var(--ev-res);stroke:var(--surface-solid);stroke-width:1.5}
+.ev-chart .ev-dot--worth{fill:var(--ev-worth)} .ev-chart .ev-dot--val{fill:var(--ev-val)}
+.ev-chart .ev-area{fill:var(--ev-worth);opacity:.14}
+.ev-chart .ev-worth-line{stroke:var(--ev-worth)}
+.ev-chart .ev-assets-line{stroke:var(--ev-assets)}
+.ev-chart .ev-pay-area{fill:var(--ev-pay);opacity:.2} .ev-chart .ev-pay-area.is-fc{opacity:.1}
+.ev-chart .ev-pay-line{stroke:var(--ev-pay);stroke-width:1.6}
+.ev-chart .ev-val-line{stroke:var(--ev-val)}
+.ev-chart .ev-today{stroke:var(--text-3);stroke-dasharray:3 4;stroke-width:1}
+.ev-hatch-key{background:repeating-linear-gradient(45deg,var(--ev-split-text) 0 3px,transparent 3px 6px)!important}
+/* the donut with its list beside it */
+.ev-donut{grid-template-columns:184px minmax(0,1fr);align-items:center;justify-items:stretch;gap:24px}
+.ev-donut .donut__ring{width:184px}
+/* the ring turns once in two minutes; it stops while the pointer is on it, so a segment is easy to point at */
+.ev-donut .ev-spin{transform-box:view-box;transform-origin:50% 50%;animation:evSpin 120s linear infinite}
+.ev-donut .donut__ring:hover .ev-spin,.ev-donut .donut__ring.is-hover .ev-spin{animation-play-state:paused}
+@keyframes evSpin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){ .ev-donut .ev-spin{animation:none} }
+.ev-donut-card .donut__list,.ev-sa-head .donut__list{max-width:440px}
+/* the forecast horizon */
+.ev-horizon{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:8px 16px;margin-top:16px;padding-top:14px;border-top:var(--bw) solid var(--hairline)}
+.ev-horizon__v{display:grid;text-align:right;line-height:1.25}
+.ev-horizon__v b{font-family:var(--font-num);font-size:18px;font-weight:var(--fw-num)}
+.ev-horizon__v small{font-size:12px;color:var(--text-3)}
+.ev-range{-webkit-appearance:none;appearance:none;width:100%;height:6px;border-radius:6px;cursor:pointer;
+  background:linear-gradient(90deg,var(--accent) 0 var(--fill,33%),var(--progress-track) var(--fill,33%) 100%)}
+.ev-range::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:var(--switch-knob);box-shadow:var(--switch-knob-shadow);border:0}
+.ev-range::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:var(--switch-knob);box-shadow:var(--switch-knob-shadow);border:0}
+.ev-range:focus-visible{outline:none;box-shadow:0 0 0 3px var(--focus-ring)}
+/* the assumptions table and the register */
+.ev-inv td,.ev-reg td{vertical-align:middle}
+.ev-inv-acc{display:block;margin-top:2px;font-size:11.5px;color:var(--text-3);font-variant-numeric:tabular-nums}
+.ev-cell{height:34px;padding:0 10px;font-size:13.5px}
+.ev-reg td,.ev-reg .th-sort{padding-left:10px;padding-right:10px}
+.ev-reg td.wrap-ok{min-width:150px}
+.ev-reg td.a{white-space:nowrap;text-align:right}
+.ev-reg td.a .btn{height:28px;margin-left:4px}
+.ev-reg tr.is-current td{background:var(--accent-soft)}
+.ev-reg tr.ev-sumrow td{background:var(--ev-band);border-bottom:0}
+.ev-sa-note{padding:12px 18px 16px;margin:0}
+/* the head of Fixed assets: donut and figures side by side */
+.ev-sa-head{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:24px;align-items:center;margin-bottom:var(--gap)}
+.ev-sa-head__donut .card__title{margin-bottom:14px}
+.ev-figs--grid{grid-template-columns:repeat(2,minmax(0,1fr));margin:0}
+#sa-offen:not(:empty){margin-bottom:var(--gap)}
+#sa-offen .ev-offer{margin:0}
+.ev-plan-months{margin-top:0;border-top:var(--bw) solid var(--hairline)}
+.ev-plan-months .group{border:0;border-radius:0;background:none;box-shadow:none}
+.ev-months{max-height:300px;overflow:auto}
+/* the asset and disposal dialogs */
+.modal.ev-modal-wide{max-width:760px}
+.ev-an__grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px 14px}
+.ev-an__grid--2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.ev-an__grid .span2{grid-column:span 2}
+.ev-an .field__label{align-items:baseline}
+.ev-an .ev-links{display:inline-flex;gap:10px}
+.ev-life{display:grid;gap:6px}
+.ev-an-preview{display:grid;gap:12px;margin-top:16px}
+.ev-figs--mini{grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:0}
+.ev-figs--mini .ev-fig{padding:10px 12px}
+.ev-figs--mini .ev-fig__v{font-size:16px}
+.ev-an-years{max-height:220px;overflow:auto;border-radius:var(--r-inner);border:var(--bw) solid var(--table-border)}
+.ev-an-years .table td{padding:7px 12px}
+.ev-an .note{margin:12px 0 0}
+
+/* ---------------------------------------------------------------- Setup, start, file menu (3c) */
+/* the side navigation: the name on the reports (click to edit), the check line, the file menu */
+.ev-owner{display:block;width:100%;margin-top:2px;padding:1px 4px;margin-left:-4px;border:var(--bw) solid transparent;border-radius:6px;background:transparent;color:var(--text-3);font-size:12px;outline:none}
+.ev-owner:hover{border-color:var(--border)} .ev-owner:focus{border-color:var(--focus);color:var(--text);background:var(--field-bg)}
+.ev-status{display:flex;align-items:center;gap:6px;padding:0 4px;font-size:12px;color:var(--text-2)}
+.ev-status::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--ev-ok);flex:none}
+.ev-status.is-bad{color:var(--danger)} .ev-status.is-bad::before{background:var(--danger)}
+.ev-filemenu{padding:6px}
+.ev-filemenu .menu__item{min-height:34px;font-size:13.5px}
+.ev-menu-sep{height:var(--bw);margin:5px 6px;background:var(--hairline)}
+.ev-menu-build{padding:6px 12px 4px;font-size:11px;color:var(--text-4)}
+/* the start screen */
+.ev-start{position:relative;z-index:1;min-height:100vh;display:grid;place-items:center;padding:24px 16px}
+.ev-start__card{width:100%;max-width:560px;display:grid;gap:20px;padding:28px}
+.ev-start__brand{display:flex;gap:16px;align-items:center}
+.ev-start__brand .app-icon{width:64px;height:64px;flex:none;border-radius:var(--r-icon);overflow:hidden;box-shadow:var(--shadow-icon)}
+.ev-start__brand .section__title{margin:0}
+.ev-start__lead{margin:4px 0 0;color:var(--text-2);font-size:14px;line-height:1.5}
+.ev-start__choices{display:grid;gap:10px}
+.ev-choice{display:flex;align-items:center;gap:14px;width:100%;padding:16px;text-align:left;border-radius:var(--r-card);border:var(--bw) solid var(--border);background:var(--field-bg);
+  transition:border-color var(--dur-fast),background var(--dur-fast),transform var(--dur) var(--ease-spring)}
+.ev-choice:hover{border-color:var(--focus);background:var(--field-bg-focus)} .ev-choice:active{transform:scale(var(--press))}
+.ev-choice:focus-visible{outline:none;box-shadow:0 0 0 3px var(--focus-ring)}
+.ev-choice__i{width:44px;height:44px;flex:none;display:grid;place-items:center;border-radius:var(--r-icon);background:var(--accent-soft);color:var(--accent)}
+.ev-choice b{display:block;font-size:15px;font-weight:600}
+.ev-choice small{display:block;margin-top:2px;font-size:12.5px;color:var(--text-3);line-height:1.45}
+.ev-start .note{margin:0}
+.ev-start__look{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+/* the setup pages: forms to add, tables with fields in their cells */
+.ev-add .card__title{margin-bottom:12px}
+.ev-add__grid{display:grid;grid-template-columns:120px minmax(0,1fr) minmax(0,280px) auto;gap:12px;align-items:end}
+.ev-add__grid--3{grid-template-columns:minmax(0,1fr) minmax(0,250px) auto}
+.ev-setup td{vertical-align:middle;padding-top:7px;padding-bottom:7px}
+.ev-setup td.nr{font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}
+.ev-setup td.a,.ev-setup th.a{width:44px;text-align:right}
+.ev-setup .ev-cell{height:34px;font-size:13px;padding:0 10px}
+.ev-setup .select.ev-cell{padding-right:30px}
+.ev-setup .select-wrap::after{right:12px}
+.ev-setup .ev-w-name{min-width:200px} .ev-setup .ev-w-grp{min-width:220px} .ev-setup .ev-w-cur{width:110px}
+.ev-setup th.ev-w-ord{width:80px}
+.ev-setup .input.is-bad{border-color:var(--danger)}
+.ev-accounts{min-width:720px}
+.ev-used{display:inline-block;min-width:22px;padding:1px 6px;border-radius:999px;background:var(--neutral-soft);font-size:11px;font-weight:600;color:var(--text-3);text-align:center}
+.ev-order{display:inline-flex;gap:2px}
+.ev-order .btn{width:30px;height:30px}
+.ev-stack{display:grid;gap:var(--gap);margin-top:var(--gap)}
+.ev-pad{padding:14px 18px 18px}
+.ev-pad:empty{display:none}
+.ev-sub{margin:16px 0 8px;font-size:var(--label-size);font-weight:var(--label-weight);letter-spacing:var(--label-spacing);text-transform:var(--label-case);color:var(--text-3)}
+.ev-offer--info{background:var(--accent-soft);margin:0}
+.chip.ev-chip-sm.is-bad{background:var(--danger-soft);color:var(--danger)}
+.ev-switch-inline{padding:0;gap:10px;flex:none}
+.ev-switch-inline span b{font-size:13px}
+.ev-close-h{margin:12px 0 6px}
+.ev-close-list{margin:0;padding-left:18px;display:grid;gap:4px}
+.ev-ex{padding-top:4px}
+.ev-ex + .ev-ex{margin-top:6px;border-top:var(--bw) solid var(--hairline)}
+.ev-ex-status{max-width:240px}
+.ev-self-start{justify-self:start}
+.ev-imp{display:grid;gap:10px}
+.ev-imp:empty{display:none}
+
+/* small phone: a booking becomes two lines (text + amount, then date · debit → credit) instead of a sideways-scrolling table */
+@media (max-width:599px){
+  .ev-jo thead{display:none}
+  .ev-jo .table,.ev-jo .table tbody{display:block;min-width:0}
+  .ev-jo .table tr{display:grid;grid-template-columns:auto minmax(0,1fr) minmax(0,1fr) auto;grid-template-areas:"t t t n" "d s h h";gap:3px 10px;padding:10px 14px;border-bottom:var(--bw) solid var(--hairline)}
+  .ev-jo .table td{padding:0;border:0;white-space:normal;min-width:0}
+  .ev-jo .table td.t{grid-area:t} .ev-jo .table td.num{grid-area:n}
+  .ev-jo .table td.d{grid-area:d;font-size:12.5px} .ev-jo .table td.s{grid-area:s} .ev-jo .table td.hb{grid-area:h}
+  .ev-jo .table td.a{display:none}
+  .ev-jo .table td.k,.ev-jo .table td.k small{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ev-jo .table td.hb:not(:empty)::before{content:"→ ";color:var(--text-4)}
+  .ev-jo .table tr.z{padding-top:4px}
+  /* the ledger: text + balance, then date · contra · movement */
+  .ev-ledger .table tr{grid-template-columns:auto minmax(0,1fr) auto;grid-template-areas:"t t bal" "d g m"}
+  .ev-ledger .table td.t{grid-area:t} .ev-ledger .table td.d{grid-area:d} .ev-ledger .table td.g{grid-area:g}
+  .ev-ledger .table td.bal{grid-area:bal} .ev-ledger .table td.s,.ev-ledger .table td.hb{grid-area:m;font-size:12.5px;font-weight:500}
+  .ev-ledger .table td.num{white-space:nowrap}
+  .ev-ledger .table tr.ev-klick td.s:empty,.ev-ledger .table tr.ev-klick td.hb:empty{display:none}
+  .ev-ledger .table tr.ev-klick td.hb:not(:empty)::before{content:"−"} .ev-ledger .table td.fx{display:none}
+  .ev-tools .ev-export,.ev-st-bar .ev-export{margin-left:0;width:100%} .ev-export__what{flex:1}
+  /* statements: the position and the two periods; the change columns stay on the computer */
+  .ev-st:not(.ev-st--wide) .chg{display:none}
+  .ev-st th.lbl,.ev-st td.lbl{min-width:0}
+  .ev-st td.num{min-width:0;padding-left:8px}
+  .ev-st tr.is-leaf td.lbl{padding-left:30px}
+  .ev-st-bar .field{flex:1 1 140px} .ev-st-bar .select--pill{min-width:0;width:100%}
+  .ev-st--wide th.lbl,.ev-st--wide td.lbl{min-width:150px;max-width:160px}
+  /* 3b: donut above its list, figures in two columns, dialogs in one or two columns */
+  .ev-donut{grid-template-columns:minmax(0,1fr);justify-items:center}
+  .ev-sa-head{grid-template-columns:minmax(0,1fr)}
+  .ev-horizon{grid-template-columns:minmax(0,1fr) auto} .ev-horizon .field__label{grid-column:1/-1}
+  .ev-an__grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .ev-an__grid .ev-month-f{grid-column:1/-1}
+  .ev-an__grid--2 > .field{grid-column:1/-1}
+  .card__head{flex-wrap:wrap;row-gap:10px}
+  /* 3c */
+  .ev-add__grid,.ev-add__grid--3{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  .ev-add__grid > .field:nth-child(2),.ev-add__grid > .field:nth-child(3){grid-column:1/-1}
+  .ev-add__grid--3 > .field:first-child{grid-column:1/-1}
+  .ev-add__grid > .btn{grid-column:1/-1}
+  .ev-start__card{padding:22px}
+  .ev-start__brand .app-icon{width:52px;height:52px}
+  .ev-an input[type=month],.ev-vt__fields input[type=month]{min-width:0;max-width:100%}
+  .ev-figs--mini{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .ev-chart{height:220px}
+  .ev-hb-actions{padding-top:0;width:100%}
+  /* Book */
+  .ev-quick{grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-areas:"datum betrag" "text text" "konten konten"}
+  .ev-mask.is-lines .ev-quick{grid-template-areas:"datum datum" "text text"}
+  .ev-quick__konten{grid-template-columns:minmax(0,1fr);gap:12px}
+  .ev-quick__to{display:none}
+  .ev-fxrow,.ev-vt__fields{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  .ev-fxrow .note,.ev-vt__fields .note{grid-column:1/-1}
+  .ev-split__row,.ev-split__row.has-fx{grid-template-columns:110px minmax(0,1fr) 36px}
+  .ev-split__row > .field{grid-column:1/3}
+  .ev-split__row > .btn{grid-column:3;grid-row:1}
+  .ev-split__row > input[data-f="t"]{grid-column:2/4}
+  .ev-lines__head{display:none}
+  .ev-lines__row{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 36px}
+  .ev-lines__row > .field{grid-column:1/3}
+  .ev-lines__row > .btn{grid-column:3;grid-row:1}
+  .ev-lines__row > input[data-f="h"]{grid-column:2/4}
+  .ev-lines__row > input[data-f="t"]{grid-column:1/-1}
+  .ev-post,.ev-post__sides{grid-template-columns:minmax(0,1fr)}
+  .ev-post__to{display:none}
+  .ev-actions .btn{flex:1 1 auto}
+  .ev-actions .spacer{display:none}
+}
+
+/* ---------------------------------------------------------------- phone: the navigation becomes a sheet from the left */
+@media (max-width:899px){
+  .ev{grid-template-columns:minmax(0,1fr)}
+  .ev-side{position:fixed;z-index:60;inset:0 auto 0 0;width:min(300px,86vw);height:auto;padding-top:calc(18px + env(safe-area-inset-top));
+    transform:translateX(-104%);transition:transform var(--dur) var(--ease);box-shadow:var(--shadow-pop);background:var(--surface-solid)}
+  .ev.nav-open .ev-side{transform:none}
+  .ev-scrim{display:block;position:fixed;inset:0;z-index:59;background:var(--overlay);-webkit-backdrop-filter:var(--overlay-blur);backdrop-filter:var(--overlay-blur);opacity:0;transition:opacity var(--dur)}
+  .ev.nav-open .ev-scrim{opacity:1}
+  .ev-scrim[hidden]{display:none}
+  .ev-main{padding:calc(14px + env(safe-area-inset-top)) 16px 40px}
+  .ev-menu{display:inline-flex;align-self:center}
+  .ev-head{align-items:center}
+  .ev-head__ctl{width:100%}
+  .ev-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .ev-pair{grid-template-columns:minmax(0,1fr)}
+  .ev-bs{grid-template-columns:minmax(0,1fr)}
+  .ev-bal__row{grid-template-columns:86px minmax(0,1fr) auto}
+}
+/* Book: the panels go below the card once the side column gets narrow */
+@media (max-width:1180px){
+  .ev-book{grid-template-columns:minmax(0,1fr)}
+  .ev-book__side{grid-template-columns:repeat(auto-fit,minmax(300px,1fr));align-items:start}
+}
+@media (prefers-reduced-motion:reduce){ .ev-side{transition:none} .ev-bal__bar i{animation:none} .siegel.los,.ev-mask.is-booked,#bu-ok.is-new,.ev-beam__arm{animation:none;transition:none} }
+/* ---------------------------------------------------------------- the app around the screens (port 2026-10-26) */
+/* the start screen and the app take turns, by the class "on" (the file code switches them) */
+.ev-start:not(.on),.ev:not(.on){display:none}
+/* the question dialog stays in the page; three answers stand stacked with the main one on top (it comes last) */
+.ev-frage[hidden]{display:none}
+.ev-frage .modal__actions.ev-stack{flex-direction:column-reverse;align-items:stretch}
+.ev-frage .modal__text p{margin:0 0 8px} .ev-frage .modal__text ul{margin:8px 0 0;padding-left:18px}
+.ev-frage .klein{font-size:12.5px} .ev-frage .mut{color:var(--text-3)}
+/* Save to folder: one line per folder in the dialog */
+.ordnerzeile{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-top:var(--bw) solid var(--hairline)}
 .ordnerzeile small{display:block;color:var(--text-3);font-size:12px;margin-bottom:2px}
 .ordnerzeile b{font-weight:600;color:var(--text);overflow-wrap:anywhere}
-.fuss{margin-top:16px;padding:10px 14px;border-radius:var(--r-control);font-size:13px;display:flex;gap:10px;align-items:center}
-.fuss.ok{background:var(--ev-ok-soft);color:var(--text)}
-.fuss.schlecht{background:var(--danger-soft);color:var(--danger)}
-.fuss.info{background:var(--ev-warn-soft);color:var(--text)}
-
-/* ---------- forms ---------- */
-.feld{display:flex;flex-direction:column;gap:5px;min-width:0}
-.feld>label{font-size:var(--field-label-size);font-weight:var(--field-label-weight);letter-spacing:var(--field-label-spacing);text-transform:var(--field-label-case);color:var(--field-label)}
-.eingabe,input[type=text].eingabe,input[type=date].eingabe,input[type=number].eingabe,input[type=month].eingabe,select.eingabe,textarea.eingabe{
-  width:100%;background:var(--field-bg);border:var(--bw) solid var(--field-border);border-radius:var(--r-control);padding:8px 11px;min-height:40px;color:var(--text);box-shadow:var(--field-shadow);
-  transition:border-color var(--dur-fast),box-shadow var(--dur-fast),background var(--dur-fast)}
-.eingabe::placeholder{color:var(--text-4)}
-.eingabe:hover{border-color:var(--field-border-hover)}
-.eingabe:focus{outline:none;border-color:var(--focus);background:var(--field-bg-focus);box-shadow:0 0 0 3px var(--focus-ring)}
-.eingabe.fehler{border-color:var(--danger);box-shadow:0 0 0 3px var(--danger-soft)}
-.eingabe.num{text-align:right}
-textarea.eingabe{min-height:120px;font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:12.5px}
-select.eingabe{padding-right:36px;cursor:pointer;
-  background-image:linear-gradient(45deg,transparent 50%,var(--text-2) 50%),linear-gradient(135deg,var(--text-2) 50%,transparent 50%);
-  background-position:calc(100% - 19px) 52%,calc(100% - 14px) 52%;background-size:5px 5px,5px 5px;background-repeat:no-repeat}
-select.eingabe.is-open{border-color:var(--focus)}
-.eingabe option,.eingabe optgroup{background:var(--surface-solid);color:var(--text)}
-input[type=date].eingabe::-webkit-calendar-picker-indicator{opacity:.6;cursor:pointer;filter:var(--picker-filter)}
-/* buttons: the tool's names, drawn as the shared button */
-.btn{--h:40px;min-height:0}
-.btn:not([class*="btn--"]):not(.leicht):not(.gefahr):not(.small){background:var(--primary-bg);color:var(--primary-text);box-shadow:var(--primary-shadow)}
-.btn.leicht{background:var(--secondary-bg);color:var(--secondary-text);border-color:var(--secondary-border)}
-.btn.gefahr{background:transparent;color:var(--danger);border-color:var(--danger-line)}
-.btn.mini{--h:32px;padding:0 12px;font-size:12.5px}
-.btn:disabled{opacity:.4;cursor:not-allowed}
-.btn kbd{font:inherit;font-size:11px;opacity:.75;border:var(--bw) solid currentColor;border-radius:4px;padding:0 4px}
-.chip{display:inline-flex;align-items:center;gap:5px;height:auto;font-size:11.5px;font-weight:600;padding:2px 9px;border-radius:var(--r-chip);background:var(--neutral-soft);color:var(--text-2);white-space:nowrap}
-.chip.gruen,.chip.ok{background:var(--ev-ok-soft);color:var(--ev-ok)}
-.chip.amber,.chip.warn{background:var(--ev-warn-soft);color:var(--ev-warn)}
-.chip.rot,.chip.bad{background:var(--danger-soft);color:var(--danger)}
-.schalter{display:inline-flex;align-items:center;gap:10px;cursor:pointer;user-select:none;font-weight:600;font-size:13.5px;color:var(--text)}
-.schalter input{appearance:none;-webkit-appearance:none;width:38px;height:22px;border-radius:999px;background:var(--switch-off);position:relative;margin:0;transition:background var(--dur) var(--ease);cursor:pointer;flex:none;border:0}
-.schalter input::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:var(--switch-knob);box-shadow:var(--switch-knob-shadow);transition:transform var(--dur-slow) var(--ease-spring)}
-.schalter input:checked{background:var(--switch-on)}
-.schalter input:checked::after{transform:translateX(16px)}
-.schalter input:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
-
-/* ---------- booking mask ---------- */
-.maske{overflow:visible}
-.kopfzeile{display:grid;grid-template-columns:170px 170px minmax(0,1fr);gap:12px;margin-bottom:6px}
-.kurzwahl{display:flex;gap:8px;margin-top:4px}
-.kurzwahl button,.kurzlink{color:var(--accent);font-size:12px;font-weight:600;padding:0}
-.kurzwahl button:hover,.kurzlink:hover{text-decoration:underline}
-.zeilen{margin-top:16px}
-.zeilenkopf,.bz{display:grid;grid-template-columns:minmax(0,1fr) 140px 140px 34px;gap:8px;align-items:start}
-.zeilenkopf.fw,.bz.fw{grid-template-columns:minmax(0,1fr) 110px 86px 120px 120px 34px}
-.zeilenkopf{font-size:12.5px;font-weight:600;color:var(--text-2);padding:0 0 4px}
-.bz{margin-bottom:8px}
-.weg{width:34px;height:40px;border-radius:var(--r-control);color:var(--text-3);font-size:18px;line-height:1;transition:background var(--dur-fast),color var(--dur-fast)}
-.weg:hover{background:var(--danger-soft);color:var(--danger)}
-.kontofeld{position:relative}
-.kontoinfo{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:var(--text-3);margin-top:3px;min-height:16px}
-.kontoinfo .name{color:var(--text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.kontoinfo.fehler .name{color:var(--danger)}
-.liste{position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:40;background:var(--menu-bg);border:var(--bw) solid var(--border);border-radius:var(--r-menu);
-  box-shadow:var(--shadow-pop);-webkit-backdrop-filter:var(--backdrop);backdrop-filter:var(--backdrop);max-height:300px;overflow-y:auto;padding:5px;
-  -webkit-overflow-scrolling:touch;overscroll-behavior:contain;touch-action:pan-y;animation:menuIn var(--dur) var(--ease-spring) both;transform-origin:30% 0}
-.kontofeld>.liste{right:auto;width:max(100%,min(400px,calc(100vw - 32px)))}
-.liste.texte{right:auto;width:max(100%,min(420px,calc(100vw - 32px)))}
-.liste.texte button{grid-template-columns:minmax(0,1fr);gap:1px}
-.liste.texte .t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.liste.texte .t mark{background:none;color:var(--accent);font-weight:700}
-.liste.texte .kz{font-size:11.5px;color:var(--text-3);font-variant-numeric:tabular-nums;white-space:nowrap}
-.f-text{position:relative}
-.liste button{display:grid;grid-template-columns:52px minmax(0,1fr) auto;gap:8px;align-items:baseline;width:100%;text-align:left;border-radius:var(--r-menu-item);padding:7px 8px;font-size:13px;color:var(--text)}
-.liste button.on,.liste button:hover{background:var(--accent-soft)}
-.liste .g{grid-column:2 / 4;font-size:11.5px;color:var(--text-3);margin-top:-3px}
-.liste .leer{padding:10px;color:var(--text-3);font-size:12.5px}
-.buchungssatz{margin-top:14px;border:var(--bw) solid var(--ev-rule);border-radius:var(--r-inner);padding:12px 14px;background:var(--ev-panel);
-  display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:10px 14px;align-items:start}
-.buchungssatz .an{align-self:center;color:var(--text-3);font-style:italic;font-size:13px}
-.buchungssatz .bs-seite div{display:flex;justify-content:space-between;gap:8px;font-size:13.5px}
-.buchungssatz .bs-seite b{font-weight:600}
-.buchungssatz .bs-seite .betrag{font-variant-numeric:tabular-nums;white-space:nowrap}
-.buchungssatz .titel{font-size:12px;color:var(--text-3);font-weight:600;margin-bottom:2px}
-.buchungssatz.leer{display:block;color:var(--text-3);font-size:13px}
-.waage{display:flex;align-items:center;gap:18px;margin-top:14px;padding:12px 14px;border-radius:var(--r-inner);background:var(--ev-panel)}
-.waage svg{flex:none}
-.waage .balken{transition:transform .5s var(--ease-spring)}
-.waage .werte{display:grid;grid-template-columns:auto auto;gap:2px 14px;font-size:13px}
-.waage .werte b{font-variant-numeric:tabular-nums;text-align:right}
-.waage .urteil{margin-left:auto;font-weight:600;font-size:13px}
-.pruefungen{margin-top:12px;display:grid;gap:4px}
-.pz{display:flex;gap:8px;align-items:flex-start;font-size:13px;color:var(--text-2)}
-.pz .i{flex:none;width:16px;height:16px;border-radius:50%;display:grid;place-items:center;font-size:10px;font-weight:700;margin-top:1px}
-.pz.ok .i{background:var(--ev-ok-soft);color:var(--ev-ok)}
-.pz.warn .i{background:var(--ev-warn-soft);color:var(--ev-warn)}
-.pz.fehler .i{background:var(--danger-soft);color:var(--danger)}
-.pz.fehler{color:var(--danger)}
-.verteilung{margin-top:14px;border-top:var(--bw) solid var(--ev-rule);padding-top:14px}
-.vt-felder{display:grid;grid-template-columns:170px 140px minmax(0,1fr);gap:12px;margin-top:12px;align-items:end}
-.vt-vorschau{margin-top:12px;max-height:250px;overflow:auto;border:var(--bw) solid var(--ev-rule);border-radius:var(--r-inner)}
-.vt-vorschau table td,.vt-vorschau table th{padding:5px 9px}
-.vt-summe{margin-top:10px;font-size:13px;color:var(--text-2)}
-.aktionen{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px;align-items:center}
-.banner{display:flex;gap:10px;align-items:center;padding:9px 12px;border-radius:var(--r-control);background:var(--ev-warn-soft);color:var(--text);font-size:13px;margin-bottom:12px}
-.siegel{position:absolute;left:50%;top:44%;width:190px;height:190px;margin:-95px 0 0 -95px;pointer-events:none;opacity:0;z-index:30}
-.siegel.los{animation:siegel 1.25s cubic-bezier(.2,.8,.2,1) forwards}
-@keyframes siegel{0%{opacity:0;transform:scale(1.5) rotate(-18deg)}30%{opacity:1;transform:scale(1) rotate(0)}70%{opacity:1;transform:scale(1) rotate(0)}100%{opacity:0;transform:scale(.96) rotate(2deg)}}
-.blatt.gebucht{animation:gebucht .6s ease-out}
-@keyframes gebucht{0%{transform:scale(1)}30%{transform:scale(.99)}100%{transform:scale(1)}}
-.seitenliste{display:grid;gap:2px}
-.seitenliste .e{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;padding:8px 8px;border-radius:var(--r-control);cursor:pointer;transition:background var(--dur-fast)}
-.seitenliste .e:hover{background:var(--row-hover)}
-.seitenliste .e .t{font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.seitenliste .e .m{font-size:12px;color:var(--text-3)}
-
-/* ---------- overview ---------- */
-.held{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:28px;align-items:center}
-.bilanzbild{display:grid;grid-template-columns:1fr 1fr;gap:6px;height:280px}
-.bb-spalte{display:flex;flex-direction:column;gap:3px;min-width:0}
-.bb-kopf{display:flex;justify-content:space-between;font-size:12.5px;color:var(--text-2);margin-bottom:4px;font-weight:600}
-.bb-kopf span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.bb-kopf span:last-child{flex:none;margin-left:8px;font-variant-numeric:tabular-nums}
-/* phone: title above its total, so both columns start at the same height (a long title never wraps the header) */
-@media (max-width:560px){ .bilanzbild .bb-kopf{flex-direction:column;align-items:flex-start;gap:1px} .bilanzbild .bb-kopf span:last-child{margin-left:0;color:var(--text);font-size:14px} }
-.bb-block{border-radius:calc(var(--r-control) * .7);color:var(--ev-bb-text);padding:8px 10px;display:flex;flex-direction:column;justify-content:flex-end;min-height:30px;overflow:hidden;font-size:12px;position:relative;
-  transform-origin:50% 100%;animation:bbIn .6s var(--ease-spring) both;transition:transform var(--dur) var(--ease-spring)}
-.bb-block:hover{transform:scale(1.015)}
-.bb-block b{font-size:13.5px;font-variant-numeric:tabular-nums}
-.bb-block.klein{flex-direction:row;align-items:center;justify-content:space-between;gap:10px;padding:5px 10px}
-.bb-block.klein span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
-.bb-block.klein b{flex:none}
-@keyframes bbIn{from{opacity:0;transform:scaleY(.6)}}
-.kennwert .l{font-size:var(--kpi-label-size);font-weight:var(--kpi-label-weight);letter-spacing:var(--kpi-label-spacing);text-transform:var(--kpi-label-case);color:var(--kpi-label)}
-.kennwert .v{font-family:var(--font-num);font-weight:var(--fw-num);font-size:46px;letter-spacing:var(--ls-kpi);line-height:1.05;font-variant-numeric:tabular-nums;margin-top:6px}
-.kennwert .linie{height:2px;width:120px;background:linear-gradient(90deg,var(--accent),var(--ev-gold));border-radius:2px;margin:12px 0 16px;transform-origin:left;animation:linieIn .9s var(--ease) both .15s}
-@keyframes linieIn{from{transform:scaleX(0)}}
-.kenngitter{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 22px}
-.kenngitter .l{font-size:12.5px;color:var(--text-3)}
-.kenngitter .v{font-size:18px;font-weight:600;font-family:var(--font-num);font-variant-numeric:tabular-nums}
-/* overview key figures: the kit's KPI cards (value, line, delta) */
-.kpikarten{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--gap);margin-bottom:var(--gap)}
-.kpikarten .kpi__value{font-size:calc(var(--fs-kpi) * .8)}
-.kpikarten .kpi__value.neg{color:var(--danger)}
-.kpikarten .kpi__value b{font-weight:inherit}
-.delta--flat{background:var(--neutral-soft);color:var(--text-2)}
-@media (max-width:1050px){ .kpikarten{grid-template-columns:repeat(2,minmax(0,1fr))} }
-@media (max-width:560px){ .kpikarten{gap:10px} .kpikarten .kpi{padding:14px} .kpikarten .kpi__value{font-size:22px} .kpikarten .kpi__foot{font-size:11.5px} }
-.leiste{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));border:var(--bw) solid var(--ev-rule);border-radius:var(--r-inner);overflow:hidden;background:var(--ev-panel)}
-.leiste>div{padding:12px 14px;border-right:var(--bw) solid var(--ev-rule)}
-.leiste>div:last-child{border-right:0}
-.leiste .l{font-size:12px;color:var(--text-3)}
-.leiste .v{font-size:17px;font-weight:600;font-family:var(--font-num);font-variant-numeric:tabular-nums;margin-top:2px}
-.dia{display:flex;gap:5px;align-items:flex-end}
-.dia .col{flex:1;display:flex;flex-direction:column;min-width:0}
-.dia .oben{display:flex;align-items:flex-end;gap:2px}
-.dia .unten{display:flex;align-items:flex-start;gap:2px}
-.dia .null{border-top:var(--bw) solid var(--ev-rule-2)}
-.dia .bl{flex:1;background:var(--ev-inc-2);min-height:2px;border-radius:3px 3px 0 0}
-.dia .unten .bl{border-radius:0 0 3px 3px}
-.dia .bl.zwei{background:var(--ev-exp)}
-.dia .bl.minus{background:var(--danger)}
-.dia .lb{font-size:11px;text-align:center;color:var(--text-3);padding-top:5px}
-.dia .col:hover .bl{opacity:.82}
-.legende{display:flex;gap:14px;font-size:12px;color:var(--text-2)}
-.legende i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
-.blockkopf{display:flex;align-items:baseline;gap:12px;margin-bottom:12px;flex-wrap:wrap}
-.blockkopf h2{margin:0;margin-right:auto}
-
-/* ---------- journal ---------- */
-details.monat{border:var(--bw) solid var(--border);border-radius:var(--r-group);margin-bottom:var(--group-gap);background:var(--group-bg);box-shadow:var(--shadow-group);overflow:hidden}
-details.monat>summary{cursor:pointer;padding:12px 16px;display:flex;gap:12px;align-items:center;list-style:none;font-weight:var(--fw-strong);transition:background var(--dur-fast)}
-details.monat>summary:hover{background:var(--row-hover)}
-details.monat>summary::-webkit-details-marker{display:none}
-details.monat>summary::before{content:"";width:8px;height:8px;border-right:1.7px solid var(--text-3);border-bottom:1.7px solid var(--text-3);transform:rotate(-45deg);transition:transform var(--dur-slow) var(--ease-spring);margin-right:2px;flex:none}
-details.monat[open]>summary::before{transform:rotate(45deg)}
-details.monat>summary .zahl{margin-left:auto;font-weight:400;color:var(--text-3);font-size:12.5px;font-variant-numeric:tabular-nums}
-details.monat table{border-top:var(--bw) solid var(--ev-rule)}
-.suche{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
-.suche .eingabe{flex:1;min-width:200px}
-
-/* ---------- dialogs: the tool's own boxes drawn as the shared modal (a sheet on the phone) ---------- */
-.hg{position:fixed;inset:0;z-index:100;display:none;align-items:center;justify-content:center;padding:20px;background:var(--overlay);-webkit-backdrop-filter:var(--overlay-blur);backdrop-filter:var(--overlay-blur)}
-.hg.on{display:flex;animation:fadeIn var(--dur) ease both}
-.hg.on .dlg{animation:modalIn var(--dur-slow) var(--ease-spring) both}
-.dlg{background:var(--surface-raised);color:var(--text);border:var(--bw) solid var(--border);border-radius:var(--r-modal);box-shadow:var(--shadow-pop);-webkit-backdrop-filter:var(--backdrop);backdrop-filter:var(--backdrop);
-  width:100%;max-width:520px;max-height:calc(100vh - 40px);overflow:auto;padding:var(--pad-modal)}
-.dlg.gross{max-width:920px}
-.dlg h3{font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-modal-title);letter-spacing:var(--ls-display);line-height:1.15;margin:0 0 8px}
-.dlg .lead{color:var(--text-2);font-size:14px;margin:0 0 16px}
-.dlg .knoepfe{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;margin-top:22px}
-.dlg .schritt{border-top:var(--bw) solid var(--hairline);padding-top:14px;margin-top:14px}
-.dlg .schritt h4{margin:0 0 8px;font-size:14px}
-.optgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.opt{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:var(--bw) solid var(--border);border-radius:var(--r-control);cursor:pointer;background:var(--field-bg);transition:border-color var(--dur-fast)}
-.opt:hover{border-color:var(--border-strong)}
-.opt input{margin-top:3px;accent-color:var(--accent)}
-.opt small{display:block;color:var(--text-3);font-size:12px}
-/* messages: the shared toast, bottom centre */
-.meldungen{position:fixed;left:50%;bottom:calc(24px + var(--sab));transform:translateX(-50%);z-index:120;display:grid;gap:8px;width:min(92vw,460px)}
-.meldung{display:flex;align-items:center;gap:12px;padding:12px 14px 12px 16px;border-radius:var(--r-toast);background:var(--toast-bg);color:var(--toast-text);border:var(--bw) solid var(--border);
-  box-shadow:var(--shadow-pop);-webkit-backdrop-filter:var(--backdrop);backdrop-filter:var(--backdrop);font-size:14px;line-height:1.4;animation:toastIn var(--dur-slow) var(--ease-spring) both}
-.meldung::before{content:"";flex:none;width:8px;height:8px;border-radius:50%;background:var(--ev-ok);box-shadow:0 0 0 4px var(--ev-ok-soft)}
-.meldung.fehler{border-color:var(--danger-line)}
-.meldung.fehler::before{background:var(--danger);box-shadow:0 0 0 4px var(--danger-soft)}
-.meldung button{font-weight:700;color:var(--toast-action);padding:2px 4px;font-size:13.5px;white-space:nowrap}
-
+/* the file menu stays in the page (hidden until the ⋯ button opens it) */
+.ev-filemenu[hidden]{display:none}
+/* native option lists in the look's colours */
+select option,select optgroup{background:var(--surface-solid);color:var(--text)}
+/* printing (the PDF reports): only the report */
 #bericht{display:none}
-
-/* ---------- quick booking ---------- */
-.schnell{display:grid;grid-template-columns:128px minmax(0,1fr) 150px minmax(0,1fr) minmax(0,1fr);gap:10px;align-items:start}
-.schnell .feld>label{display:flex;justify-content:space-between;gap:8px}
-.schnell .feld>label .kurz{font-weight:500;color:var(--text-3);text-transform:none;letter-spacing:0}
-.fwzeile{display:grid;grid-template-columns:150px 110px auto;gap:10px;align-items:end;margin-top:10px;padding:10px 12px;border-radius:var(--r-control);background:var(--ev-panel)}
-.split{margin-top:14px;border:var(--bw) solid var(--ev-rule);border-radius:var(--r-inner);padding:12px 14px;background:var(--ev-panel)}
-.split-kopf{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:8px;font-size:13px}
-.split-kopf b{font-weight:600}
-.splitzeile{display:grid;grid-template-columns:minmax(0,1.1fr) 140px minmax(0,1fr) 34px;gap:8px;margin-bottom:8px;align-items:start}
-.splitzeile.fw{grid-template-columns:minmax(0,1.1fr) 110px 86px 140px minmax(0,1fr) 34px}
-.rest{font-variant-numeric:tabular-nums;font-weight:600}
-.rest.offen{color:var(--ev-warn)}.rest.null{color:var(--ev-ok)}.rest.zuviel{color:var(--danger)}
-.modus{display:flex;gap:6px;align-items:center;font-size:12px;color:var(--text-3);margin-left:auto}
-.zeilenmodus .zl{display:grid;grid-template-columns:minmax(0,1.1fr) 130px 130px minmax(0,1fr) 34px;gap:8px;margin-bottom:8px;align-items:start}
-.zeilenmodus .zl.kopf{font-size:12.5px;font-weight:600;color:var(--text-2);margin-bottom:4px}
-.pruefkompakt{margin-top:12px;display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px}
-.verlauf .e{grid-template-columns:36px minmax(0,1fr) auto 40px 40px;gap:2px 6px;align-items:baseline;position:relative;padding:7px 6px}
-.verlauf .e .d{font-size:12px;color:var(--text-3);font-variant-numeric:tabular-nums}
-.verlauf .e .t{font-size:12.5px}
-.verlauf .e .kt{font-size:12px;color:var(--text-2);font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.verlauf .e .a{position:absolute;right:4px;top:50%;transform:translateY(-50%);display:flex;gap:4px;opacity:0;pointer-events:none;transition:opacity var(--dur-fast)}
-.verlauf .e:hover .a,.verlauf .e:focus-within .a{opacity:1;pointer-events:auto}
-.verlauf .gegen{grid-column:2 / -1;font-size:12px;color:var(--text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.verlauf-kopf{display:grid;grid-template-columns:36px minmax(0,1fr) auto 40px 40px;gap:6px;padding:0 6px 4px;font-size:11px;font-weight:600;color:var(--text-3);border-bottom:var(--bw) solid var(--ev-rule);margin-bottom:2px}
-@media (hover:none){ .verlauf .e .a{display:none} }
-.vl-saldo{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin:2px 0 10px;padding:8px 10px;border-radius:var(--r-control);background:var(--ev-panel);font-size:13px}
-.vl-saldo b{font-size:15px;font-variant-numeric:tabular-nums}
-.vl-saldo small{display:block;font-size:11.5px;color:var(--text-3)}
-/* the booking button, ready to post */
-#bu-ok.bereit{box-shadow:0 0 0 3px var(--surface-solid),0 0 0 5.5px var(--ev-ok)}
-#bu-ok.bereit.neu{animation:bereit .7s ease-out}
-@keyframes bereit{0%{transform:scale(1)}40%{transform:scale(1.04)}100%{transform:scale(1)}}
-/* journal: one row per booking, split lines below */
-table.jo{table-layout:fixed;min-width:640px}
-table.jo td{border-bottom:0;padding:5px 9px}
-table.jo tbody tr:first-child td{border-top:var(--bw) solid var(--ev-rule)}
-table.jo tbody:first-of-type tr:first-child td{border-top:0}
-table.jo tbody:hover td{background:var(--row-hover)}
-table.jo tbody.an td{background:var(--accent-soft)}
-table.jo td.t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-table.jo td.num{white-space:nowrap}
-table.jo td.kt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-table.jo td.kt .nr{font-weight:600;font-variant-numeric:tabular-nums}
-table.jo td.kt .kn{color:var(--text-3);font-size:12.5px}
-table.jo tr.teilz td{padding-top:1px;padding-bottom:3px;font-size:12.5px;color:var(--text-2)}
-table.jo tr.teilz td.t{padding-left:22px}
-table.jo .splitchip{font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.04em}
-.mo-aktion{display:inline-flex;gap:4px;margin-left:10px}
-.mo-aktion .btn.mini{--h:26px;padding:0 8px;font-size:12px}
-/* tooltip */
-.tip{position:fixed;z-index:300;pointer-events:none;background:var(--tip-bg);color:var(--tip-text);border:var(--bw) solid var(--border);border-radius:var(--r-tip);padding:7px 10px;font-size:12.5px;
-  box-shadow:var(--shadow-pop);white-space:nowrap;opacity:0;transform:translateY(4px);transition:opacity .1s,transform .1s}
-.tip.an{opacity:1;transform:none}
-.tip b{font-variant-numeric:tabular-nums}
-.tip .z{display:flex;justify-content:space-between;gap:14px}
-[data-tip]{cursor:default}
-/* twelve months, years */
-/* Twelve months and Years: one even sheet. Every cell sits on the same colour (--ev-sheet); rows only add the same thin
-   overlays everywhere, so the sticky account column and header can never look different from the cells next to them. */
-.monate{overflow:auto;max-height:calc(100vh - 170px);border:var(--bw) solid var(--ev-rule);border-radius:var(--r-inner);background:var(--ev-sheet)}
-.monate table{border-collapse:separate;border-spacing:0;min-width:1180px;background:var(--ev-sheet)}
-.monate td,.monate th{padding:5px 8px;border-bottom:var(--bw) solid var(--ev-rule);white-space:nowrap;background:var(--ev-sheet)}
-.monate th{position:sticky;top:0;background:var(--ev-sheet-head);z-index:2}
-.monate td:first-child,.monate th:first-child{position:sticky;left:0;z-index:1;min-width:260px;max-width:340px;overflow:hidden;text-overflow:ellipsis;box-shadow:inset -1px 0 0 var(--ev-rule)}
-.monate th:first-child{z-index:3}
-.monate tbody tr:nth-child(even) td{background:linear-gradient(var(--ev-band),var(--ev-band)),var(--ev-sheet)}
-.monate tr.teil td{font-family:var(--font-display);font-weight:var(--fw-display);font-size:15px;padding-top:14px}
-.monate tr.bereich td{font-weight:600;color:var(--accent);padding-top:12px}
-.monate tbody tr.gruppe td{font-weight:600;background:linear-gradient(var(--ev-panel),var(--ev-panel)),var(--ev-sheet)}
-.monate tbody tr.summe td{font-weight:600;border-top:var(--bw) solid var(--text);background:linear-gradient(var(--ev-panel),var(--ev-panel)),var(--ev-sheet)}
-.monate tr.total td{font-weight:700;border-top:var(--bw) solid var(--text);border-bottom:3px double var(--text)}
-.monate td.einzug{padding-left:22px}
-.monate td.sp{border-left:var(--bw) solid var(--ev-rule-2)}
-.monate.jahre table{min-width:0;width:100%}
-.monate.jahre td:not(:first-child),.monate.jahre th:not(:first-child){width:120px}
-.monate td.delta,.monate th.delta{display:table-cell;height:auto;border-radius:0;font-weight:inherit;color:var(--text-3);font-size:12px;width:96px!important;padding:5px 8px}
-.monate th small{display:block;font-weight:500;color:var(--text-3);font-size:11px;text-transform:none;letter-spacing:0}
-.monate tr.klappbar{cursor:pointer}
-.monate tbody tr.klappbar:hover td{background:linear-gradient(var(--row-hover),var(--row-hover)),var(--ev-sheet)}
-/* one chevron per group, drawn like the statements' chevrons */
-.monate .chev{display:inline-block;position:relative;width:14px;height:12px;margin-right:4px;vertical-align:middle;font-size:0;line-height:12px;border:0;transform:none;transition:transform var(--dur) var(--ease-spring)}
-.monate .chev::before{content:"";position:absolute;left:3px;top:3px;width:5px;height:5px;border-right:1.6px solid var(--text-3);border-bottom:1.6px solid var(--text-3);transform:rotate(-45deg)}
-.monate .chev.none{visibility:hidden}
-.monate tr.klappbar.open .chev{transform:rotate(90deg)}
-.monate tr.zu{display:none}
-
-/* ---------- statements, overviews, investments ---------- */
-.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;background:var(--surface);border:var(--bw) solid var(--border);border-radius:var(--r-card);box-shadow:var(--shadow-card);
-  -webkit-backdrop-filter:var(--backdrop);backdrop-filter:var(--backdrop);overflow:hidden;margin-bottom:var(--gap)}
-.kpis .kpi{display:block;min-height:0;position:relative;padding:14px 16px 13px;border-right:var(--bw) solid var(--ev-rule)}
-.kpis .kpi:last-child{border-right:0}
-.kpi .bar,.kpi .more{display:none}
-.kpi .k{font-size:var(--kpi-label-size);font-weight:var(--kpi-label-weight);letter-spacing:var(--kpi-label-spacing);text-transform:var(--kpi-label-case);color:var(--kpi-label)}
-.kpi .v{font-size:20px;font-weight:var(--fw-num);font-family:var(--font-num);font-variant-numeric:tabular-nums;margin-top:4px}
-.kpi .v.neg{color:var(--danger)}
-.kpi .d,.kpi .cmp{font-size:12px;color:var(--text-3);margin-top:3px}
-.kpi .cmp .neg{color:var(--danger);font-weight:600} .kpi .cmp .pos{color:var(--ev-ok);font-weight:600}
-.kpi.clickable{cursor:pointer;transition:background var(--dur-fast)} .kpi.clickable:hover{background:var(--row-hover)}
-.kpi.clickable .k::after{content:" →";color:var(--accent)}
-.balbadge{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:var(--r-chip);font-size:13px;background:var(--ev-ok-soft);color:var(--text)}
-.balbadge.bad{background:var(--danger-soft);color:var(--danger)}
-.fs-kopf{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;margin:0 0 14px}
-.fs-kopf .fs-wahl{flex-wrap:wrap}
-.fs-kopf .fs-wahl select{font-weight:600}
-.fs-kopf .vs{color:var(--text-3);font-size:12.5px}
-.fs-kopf .fs-rechts{display:flex;align-items:center;flex-wrap:wrap;gap:10px 16px;margin-left:auto}
-.fs-kopf .schalter{font-size:13px;gap:8px}
-.fs-kopf .seg{height:34px}
-.fs-kopf .seg button{font-size:12.5px;padding:0 12px}
-.blattnotiz{font-size:12.5px;color:var(--text-3)}
-table.abschluss{width:100%;border-collapse:collapse;font-size:14px}
-table.abschluss th{font-size:12px;font-weight:600;color:var(--text-3);text-align:left;padding:0 10px 8px;border-bottom:1.5px solid var(--text);white-space:nowrap;vertical-align:bottom;text-transform:none;letter-spacing:0}
-table.abschluss th.num{text-align:right}
-table.abschluss th.per .pl{display:block;color:var(--text);font-size:13px}
-table.abschluss th.per .pd{display:block;font-weight:500;font-size:11.5px;color:var(--text-3);margin-top:1px}
-table.abschluss td{border:0;padding:5px 10px;vertical-align:baseline}
-table.abschluss td.num{text-align:right;font-variant-numeric:tabular-nums lining-nums;white-space:nowrap;width:1%;padding-left:22px}
-table.abschluss td.leer{color:var(--text-3)}
-table.abschluss td.neg{color:var(--danger)}
-table.abschluss .chg{color:var(--text-3);font-size:12.5px}
-table.abschluss td.pct{min-width:58px}
-table.abschluss tr.teil td{padding:30px 10px 2px;font-family:var(--font-display);font-weight:var(--fw-display);font-size:18px;letter-spacing:var(--ls-display);color:var(--text)}
-table.abschluss tbody tr.teil:first-child td{padding-top:16px}
-table.abschluss tr.bereich td{padding:14px 10px 5px;font-size:13px;font-weight:600;color:var(--accent)}
-table.abschluss tr.teil+tr.bereich td{padding-top:6px}
-table.abschluss tr.luft td{height:10px;padding:0}
-table.abschluss tr.grp td{border-bottom:var(--bw) solid var(--ev-rule)}
-table.abschluss tr.grp td.lbl{position:relative;padding-left:30px}
-table.abschluss tr.grp[data-g]{cursor:pointer}
-table.abschluss tr.grp[data-g]:hover td,table.abschluss tr.leaf.klickbar:hover td{background:var(--row-hover)}
-table.abschluss .chev{position:absolute;left:9px;top:50%;width:14px;height:14px;margin-top:-7px;border:0;transform:none;transition:transform var(--dur) var(--ease-spring)}
-table.abschluss .chev::before{content:"";position:absolute;left:3px;top:4px;width:5px;height:5px;border-right:1.6px solid var(--text-3);border-bottom:1.6px solid var(--text-3);transform:rotate(-45deg)}
-table.abschluss tr.grp[data-g]:hover .chev::before{border-color:var(--accent)}
-table.abschluss tr.grp.open .chev{transform:rotate(90deg)}
-table.abschluss tr.grp.flach .chev{display:none}
-table.abschluss tr.grp.open td{font-weight:600;border-bottom-color:transparent}
-table.abschluss .anz{display:inline-block;margin-left:8px;padding:0 6px;border-radius:var(--r-chip);background:var(--neutral-soft);color:var(--text-3);font-size:11px;font-weight:600;line-height:17px;vertical-align:1px;opacity:0;transition:opacity var(--dur-fast)}
-table.abschluss tr.grp[data-g]:hover .anz,table.abschluss tr.grp.open .anz{opacity:1}
-table.abschluss tr.leaf.hide{display:none}
-table.abschluss tr.leaf td{font-size:13px;color:var(--text-2);padding-top:4px;padding-bottom:4px;background:var(--ev-band)}
-table.abschluss tr.leaf td.lbl{padding-left:46px;position:relative}
-table.abschluss tr.leaf td.lbl::before{content:"";position:absolute;left:30px;top:0;bottom:0;width:2px;background:var(--accent);opacity:.55}
-table.abschluss tr.leaf.letzte td{border-bottom:var(--bw) solid var(--ev-rule)}
-table.abschluss tr.leaf.klickbar{cursor:pointer}
-table.abschluss tr.leaf.klickbar:hover .kn{color:var(--accent);text-decoration:underline;text-underline-offset:2px}
-table.abschluss .kto{display:inline-block;min-width:52px;margin-right:6px;color:var(--text-3);font-size:12px;font-variant-numeric:tabular-nums}
-table.abschluss tr.leaf.show{animation:zeileEin .25s var(--ease) both}
-table.abschluss tr.sub td,table.abschluss tr.res td{border-top:var(--bw) solid var(--text);font-weight:600;background:var(--ev-panel)}
-table.abschluss tr.sub.ueber td{border-top-width:1.5px}
-table.abschluss tr.zw td{border-top:var(--bw) solid var(--ev-rule-2);font-weight:600}
-table.abschluss tr.tot td{border-top:var(--bw) solid var(--text);border-bottom:3px double var(--text);font-weight:700;font-size:15px;padding-top:8px;padding-bottom:7px}
-table.abschluss tr.sub .chg,table.abschluss tr.res .chg,table.abschluss tr.tot .chg{font-weight:500}
-@keyframes zeileEin{from{opacity:0;transform:translateY(-3px)}}
-@media (max-width:700px){
-  table.abschluss{font-size:13px}
-  table.abschluss td,table.abschluss th{padding-left:6px;padding-right:6px}
-  table.abschluss td.num{padding-left:8px;font-size:12.5px}
-  table.abschluss th{white-space:normal}
-  table.abschluss th.per .pl{font-size:12px}
-  table.abschluss .anz{display:none}
-  table.abschluss td.lbl{overflow-wrap:anywhere;hyphens:auto}
-  .fs-tabelle{margin:0 -8px;padding:0}
-  table.abschluss .pct{display:none}
-  table.abschluss tr.grp td.lbl{padding-left:24px}
-  table.abschluss .chev{left:4px}
-  table.abschluss tr.leaf td.lbl{padding-left:34px}
-  table.abschluss tr.leaf td.lbl::before{left:22px}
-  table.abschluss .kto{display:block;min-width:0;margin:0;font-size:11px}
-  table.abschluss tr.teil td{font-size:17px}
-}
-.nc-notiz{margin-top:22px;padding-top:4px}
-.nc-notiz h3{margin:0 0 2px;font-family:var(--font-display);font-weight:var(--fw-display);font-size:15px;color:var(--text)}
-.nc-notiz .hinweis{margin:0 0 6px}
-.nc-notiz tr.grp td{color:var(--text-2);font-size:13px}
-.nc-notiz tr.grp td.lbl{padding-left:10px}
-.nc-notiz tr.klein td{color:var(--text-3)}
-.nc-notiz .nc-konten{margin-left:8px;color:var(--text-3);font-size:11.5px;font-variant-numeric:tabular-nums}
-.fs-tabelle.ohnevar .chg{display:none}
-#gf-note{color:var(--text-2)}
-#gf-note .fuss,#er-check .fuss+.fuss{margin-top:8px}
-.ovgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--gap);margin-bottom:var(--gap)}
-.ovcard{all:unset;box-sizing:border-box;display:block;cursor:pointer;position:relative;background:var(--surface);border:var(--bw) solid var(--border);border-radius:var(--r-card);padding:18px 20px;box-shadow:var(--shadow-card);
-  -webkit-backdrop-filter:var(--backdrop);backdrop-filter:var(--backdrop);color:var(--text);transition:transform var(--dur) var(--ease-spring),border-color var(--dur-fast)}
-.ovcard:hover{border-color:var(--border-strong);transform:translateY(-2px)} .ovcard:active{transform:scale(var(--press))} .ovcard:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
-.ovcard .ovh{display:flex;align-items:baseline;gap:10px}
-.ovcard .ovh .n{display:none}
-.ovcard .ovh h3{margin:0;font-family:var(--font-card-title);font-size:var(--fs-card-title);font-weight:var(--fw-card-title);flex:1;color:var(--text)}
-.ovcard .ovh .go{color:var(--accent)}
-.ovcard .ovsub{font-size:12.5px;color:var(--text-3);margin:2px 0 12px}
-.ovcard .ovk>div{display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-bottom:var(--bw) solid var(--ev-rule);font-size:13.5px}
-.ovcard .ovk .k{color:var(--text-2)} .ovcard .ovk .v{font-weight:600;font-variant-numeric:tabular-nums}
-.ovcard .v.neg,.inv .neg{color:var(--danger)} .ovcard .v.pos,.inv .pos{color:inherit}
-.ovcard .foot{margin-top:12px;font-size:12.5px;color:var(--text-2)}
-.chart-wrap{position:relative;margin:6px 0 8px}
-.chart-wrap svg,svg.chart{display:block;width:100%;height:auto;overflow:visible}
-.chart-wrap svg text{font-size:11px;fill:var(--chart-axis);font-variant-numeric:tabular-nums}
-.chart-wrap svg .cursor{stroke:var(--ev-cursor);stroke-dasharray:3 3}
-.chart-wrap .tip{position:absolute;top:6px;left:0;z-index:5;min-width:180px}
-.chart-wrap .tip.on{opacity:1;transform:none}
-.chart-wrap .tip .t{font-weight:600;margin-bottom:4px}
-.chart-wrap .tip .row{display:flex;flex-wrap:nowrap;justify-content:space-between;gap:14px;font-variant-numeric:tabular-nums}
-.chart-wrap .tip .row + .row{margin-top:0}
-.chart-wrap .tip .neg{color:var(--danger)} .chart-wrap .tip .pos{color:inherit}
-.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--text-2);margin-top:8px}
-.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
-.plegend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--text-2)}
-.plegend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
-.slider-row{display:flex;align-items:center;gap:16px}
-.slider-row .yrs{font-family:var(--font-num);font-size:22px;font-weight:var(--fw-num);min-width:96px}
-.slider-row .yrs small{font-size:13px;color:var(--text-3);font-weight:500}
-.slider-row input[type=range]{flex:1;accent-color:var(--accent);-webkit-appearance:auto;appearance:auto}
-table.inv{width:100%;border-collapse:collapse;font-size:13.5px}
-table.inv th{font-size:12px;font-weight:600;color:var(--text-3);text-align:left;padding:7px 9px;border-bottom:var(--bw) solid var(--ev-rule-2);white-space:nowrap}
-table.inv th.num,table.inv td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
-table.inv td{padding:6px 9px;border-bottom:var(--bw) solid var(--ev-rule);vertical-align:middle}
-table.inv tbody tr:nth-child(even) td{background:var(--ev-band)}
-table.inv td.empty{display:table-cell;color:var(--text-3);text-align:center;padding:16px}
-table.inv input.cell{border:var(--bw) solid var(--field-border);border-radius:var(--r-control);padding:5px 8px;font:inherit;background:var(--field-bg);color:var(--text);min-width:0;width:96px;text-align:right}
-table.inv input.cell.wide{width:100%;text-align:left}
-table.inv input.cell:not([type=number]){text-align:left}
-table.inv select.pill{border:var(--bw) solid var(--field-border);border-radius:var(--r-control);font:inherit;background:var(--field-bg);color:var(--text);max-width:320px;padding:5px 8px}
-table.inv .btn.small{--h:30px;padding:0 10px;font-size:12.5px;border-radius:var(--r-control);border:var(--bw) solid var(--border);background:var(--secondary-bg);color:var(--secondary-text);cursor:pointer}
-table.inv .btn.danger{color:var(--danger)}
-table.inv label.toggle{display:inline-flex;align-items:center}
-@media (max-width:900px){ .ovgrid{grid-template-columns:1fr} .kpis{grid-template-columns:repeat(2,minmax(0,1fr))} .kpis .kpi:nth-child(2){border-right:0} .kpis .kpi:nth-child(-n+2){border-bottom:var(--bw) solid var(--ev-rule)} }
-/* doughnut */
-.donut{display:grid;grid-template-columns:220px minmax(0,1fr);gap:26px;align-items:center;justify-items:stretch}
-.donut svg{width:220px;height:220px;display:block}
-.donut .seg{transition:opacity var(--dur-fast);cursor:default}
-.donut .seg.blass{opacity:.28}
-.donut .d-l{font-size:11px;fill:var(--text-3)}
-.donut .d-v{font-size:17px;font-weight:600;fill:var(--text);font-variant-numeric:tabular-nums}
-.donut svg.ein{animation:donutIn var(--dur-chart) var(--ease) both}
-/* the ring turns slowly (one turn in 90 s), pauses under the pointer; reduced motion: still */
-.donut .dreh{transform-box:view-box;transform-origin:110px 110px;animation:donutDreh 90s linear infinite}
-.donut:hover .dreh{animation-play-state:paused}
-@keyframes donutDreh{to{transform:rotate(360deg)}}
-@media (prefers-reduced-motion:reduce){ .donut .dreh{animation:none} }
-.donut-liste .z{display:grid;grid-template-columns:12px minmax(0,1fr) auto 58px;gap:10px;align-items:center;padding:6px 8px;border-bottom:var(--bw) solid var(--ev-rule);border-radius:6px;font-size:13.5px}
-.donut-liste .z i{width:10px;height:10px;border-radius:3px}
-.donut-liste .z .t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.donut-liste .z .num{text-align:right;font-variant-numeric:tabular-nums}
-.donut-liste .z.an{background:var(--row-hover)}
-@media (max-width:720px){ .donut{grid-template-columns:1fr;justify-items:center} .donut-liste{width:100%} }
-.verlauf .e.frisch{animation:frisch 1.6s ease-out}
-@keyframes frisch{0%{opacity:.4;transform:translateX(-6px)}100%{opacity:1;transform:none}}
-
-/* ---------- narrow ---------- */
-@media (max-width:1180px){ .r-buchen{grid-template-columns:1fr} .held{grid-template-columns:1fr} }
-@media (max-width:1000px){
-  .shell.on{grid-template-columns:1fr}
-  .navleiste{position:fixed;left:0;top:0;bottom:0;width:286px;transform:translateX(-104%);transition:transform .32s var(--ease-spring);background:var(--surface-raised);box-shadow:var(--shadow-pop)}
-  .navleiste.offen{transform:none}
-  .menuknopf{display:grid}
-  .arbeit.wrap{padding:0 14px calc(60px + var(--sab))}
-  .kopf::before{inset:0 -14px}
-  .zweispaltig{grid-template-columns:1fr}
-  /* phone: title and the look button share the first row; period controls follow, the ones a page does not use are gone */
-  .kopf .menuknopf{order:-3} .kopf h1{order:-2} .kopf .look-btn{order:-1}
-  .kopf .ctl[style*="hidden"],.kopf .segmented[style*="hidden"]{display:none}
-}
-@media (max-width:1100px){ .schnell{grid-template-columns:128px minmax(0,1fr) 140px} .schnell .konto-soll{grid-column:1 / 3} .schnell .konto-haben{grid-column:3 / 4} }
-@media (max-width:720px){
-  .schnell{grid-template-columns:1fr 1fr} .schnell .f-text{grid-column:1 / -1} .schnell .konto-soll,.schnell .konto-haben{grid-column:auto}
-  .splitzeile,.splitzeile.fw,.zeilenmodus .zl{grid-template-columns:1fr 1fr 34px} .splitzeile .kontofeld,.zeilenmodus .zl .kontofeld{grid-column:1 / -1}
-  .blatt{padding:16px 14px}
-  .kopfzeile{grid-template-columns:1fr 1fr}
-  .kopfzeile .feld:last-child{grid-column:1 / -1}
-  .zeilenkopf{display:none}
-  .bz,.bz.fw{grid-template-columns:1fr 1fr 34px;padding-bottom:10px;border-bottom:var(--bw) solid var(--ev-rule)}
-  .bz .kontofeld{grid-column:1 / -1}
-  .bz.fw .fwfeld{grid-column:span 1}
-  .vt-felder{grid-template-columns:1fr 1fr}
-  .buchungssatz{grid-template-columns:1fr}
-  .buchungssatz .an{display:none}
-  .kennwert .v{font-size:36px}
-  .bilanzbild{height:200px}
-  .optgrid{grid-template-columns:1fr}
-  .ctl select{max-width:170px}
-  .hg{align-items:flex-end;padding:0}
-  .dlg{max-width:none;border-radius:var(--r-modal) var(--r-modal) 0 0;border-bottom:0;padding-bottom:calc(var(--pad-modal) + var(--sab));max-height:92vh}
-  .hg.on .dlg{animation-name:sheetIn}
-  .eingabe,input.eingabe,select.eingabe,textarea.eingabe,.ctl select,.mandant input{font-size:16px}
-}
-@media (prefers-reduced-motion:reduce){
-  .page.on,.bb-block,.kennwert .linie,table.abschluss tr.leaf.show,.donut svg.ein,.verlauf .e.frisch,.siegel.los,.blatt.gebucht,#bu-ok.bereit.neu,.liste,.dmenu .panel,.meldung,.hg.on .dlg{animation-name:fadeIn!important;animation-duration:.2s!important}
-  .bb-block:hover,.ovcard:hover{transform:none}
-}
 @media print{
   body{background:#fff!important}
-  .backdrop,.ambient,.start,.shell,.hg,.meldungen{display:none!important}
+  .backdrop,.ambient,.ev-start,.ev,.overlay,.toasts,.menu{display:none!important}
   #bericht{display:block!important}
 }
-
-/* the build version at the bottom of the file menu */
-.menu__build{padding:8px 10px 2px;font-size:11px;color:var(--text-4);font-variant-numeric:tabular-nums;text-align:center}
-
-/* native option lists in the look's colours (otherwise light text on a white list in the dark looks) */
-select option,select optgroup{background:var(--surface-solid);color:var(--text)}
 </style>

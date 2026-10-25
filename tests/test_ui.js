@@ -5,7 +5,7 @@ const fs = require('fs');
 const FILE = 'file://' + require('path').resolve(process.argv[2]);
 const OUT = process.argv[3] || require('path').join(__dirname, 'shots', 'ui');
 const THEMES = (process.argv[4] || 'glass,ember,prism').split(',');
-const PAGES = (process.argv[5] || 'uebersicht,buchen,journal,bilanz,erfolg,ueberjahre').split(',');
+const PAGES = (process.argv[5] || 'uebersicht,buchen,journal,hauptbuch,bilanz,geldfluss,monate,ueberjahre,anlagen,sachanlagen,konten,vergleich').split(',');
 fs.mkdirSync(OUT, { recursive: true });
 (async () => {
   const b = await chromium.launch(); const errors = [];
@@ -51,8 +51,9 @@ fs.mkdirSync(OUT, { recursive: true });
       if (tag === 'desk'){
         await p.click('#look'); await p.waitForTimeout(300);
         await p.screenshot({ path: OUT + '/' + theme + '-desk-look.png' }); await p.keyboard.press('Escape');
-        await p.click('#dmenu summary'); await p.waitForTimeout(300);
+        await p.click('#fileMenu'); await p.waitForTimeout(300);
         await p.screenshot({ path: OUT + '/' + theme + '-desk-menu.png' }); await p.keyboard.press('Escape');
+        if (!(await p.$eval('#dmenu', m => m.hidden))) errors.push(theme + ' desk: Escape does not close the file menu');
       }
       await ctx.close();
     }

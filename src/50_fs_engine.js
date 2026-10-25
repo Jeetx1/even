@@ -281,7 +281,7 @@ function cfClassOf(a) {
   return null;
 }
 
-const RE_ADJ = /auf-?\s*und\s*abwertung|aufwertungen|abwertungen|wertberichtigung|nicht realisiert|abschreibung/i;
+const RE_ADJ = /auf-?\s*und\s*abwertung|aufwertungen|abwertungen|wertberichtigung|nicht realisiert|abschreibung|unreali[sz]ed|value adjustment/i;   // EVEN 26.10.2026: the template's English names too
 const RE_PENS = /pensionskasse|vorsorge/i;
 const RE_PENS_PL = /pensionskasse|pension fund|vorsorge/i;          // pension interest in 6900-6999
 const RE_WB = /\bwb\b|wertberichtigung|kumulierte abschreibung/i;  // accumulated depreciation
@@ -657,12 +657,12 @@ const invKandidaten = () => S.invKandidaten ? allAccounts().filter((a) => S.invK
 
 function cleanLabel(n) {
   return String(n)
-    .replace(/\s*\((Einzahlungen|inkl\.|Abschreibung|nicht realisiert)[^)]*\)\s*$/i, "")
-    .replace(/\s*,?\s*(Auf-?\s*und\s*Abwertung(en)?|Aufwertungen|Abwertungen)\b.*$/i, "")
+    .replace(/\s*\((Einzahlungen|inkl\.|Abschreibung|nicht realisiert|net deposits|deposits)[^)]*\)\s*$/i, "")
+    .replace(/\s*,?\s*(Auf-?\s*und\s*Abwertung(en)?|Aufwertungen|Abwertungen|unreali[sz]ed gains)\b.*$/i, "")
     .trim();
 }
 const isAdjAcct = (a) => RE_ADJ.test(nameOf(a));
-const isDeposit = (a) => /kaution|deposit|mietzins/i.test(nameOf(a));
+const isDeposit = (a) => /kaution|mietzins|rent(al)? deposit|security deposit/i.test(nameOf(a));   // not "net deposits" (EVEN 26.10.2026)
 function hasBalance(a) {
   const ps = periods();
   return ps.length ? !nil(accVal(ps[ps.length - 1], a)) : false;

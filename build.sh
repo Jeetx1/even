@@ -6,7 +6,7 @@
 set -e
 cd "$(dirname "$0")"
 mkdir -p docs
-cat src/01_head.html src/02_dl_tokens.html src/03_tokens.html src/04_dl_components.html src/05_styles.html src/06_dl_effects.html src/07_effects.html src/08_body.html src/09_dl_kit.html src/10_template.html src/20_engine.html src/22_engine_plus.html src/30_ui.html src/40_book.js src/50_fs_engine.js src/60_reports.js src/62_statements.js src/64_fixed_assets.js src/70_excel.js src/72_exports.js src/74_import.js src/99_boot.js > docs/index.html
+cat src/01_head.html src/02_dl_tokens.html src/03_tokens.html src/04_dl_components.html src/05_styles.html src/06_dl_effects.html src/07_effects.html src/08_body.html src/09_dl_kit.html src/10_template.html src/20_engine.html src/22_engine_plus.html src/30_ui.html src/31_core.js src/35_file.js src/40_book.js src/45_ledger.js src/50_fs_engine.js src/60_reports.js src/62_statements.js src/64_fixed_assets.js src/66_setup.js src/70_excel.js src/72_exports.js src/99_boot.js > docs/index.html
 cp pwa/manifest.webmanifest pwa/sw.js pwa/icon-180.png pwa/icon-192.png pwa/icon-512.png docs/
 # every script block must compile, and sw.js must carry the same build version as the page
 node - <<'JS'

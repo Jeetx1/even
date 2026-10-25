@@ -1,468 +1,457 @@
+<!-- EVEN · the page: start screen, side navigation and page head, the pages, the question dialog, the file menu. Built on the Design Lab kit (interface rebuilt 25.10.2026). -->
 </head>
 <body>
+<!-- EVEN: the start screen, the shell (side navigation on the computer, a sheet on the phone) and the pages.
+     Built only from the kit's components; EVEN's own pieces (side navigation, balance picture, month chart) use tokens. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-menu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></symbol>
+    <symbol id="i-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5M12 7.8v.2"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4l9 16H3z"/><path d="M12 10v4M12 17v.2"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+    <symbol id="i-zurueck" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8a5 5 0 1 0 1.5-3.6"/><path d="M3 2.5v3h3"/></symbol>
+    <symbol id="i-soon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
+  </defs>
+</svg>
 <div class="backdrop" aria-hidden="true"></div>
 <div class="ambient" id="ambient" aria-hidden="true"></div>
-<div class="tip" id="tip" role="tooltip"></div>
 
-<!-- START -->
-<section class="start on" id="start">
-  <div class="startkarte">
-    <div class="marke">
-      <div class="app-icon" data-app-icon></div>
-      <div>
-        <h1>EVEN</h1>
-        <p class="lead">Double-entry bookkeeping, debit equals credit. This window is the program; your figures live in their own file, which you open here.</p>
-      </div>
+<!-- START: before a file is open. The look can be chosen here already -->
+<section class="ev-start start on" id="start">
+  <div class="card ev-start__card">
+    <div class="ev-start__brand"><div class="app-icon" data-icon></div><div><h1 class="section__title">EVEN</h1>
+      <p class="ev-start__lead">Double-entry bookkeeping, debit equals credit. This window is the program; your figures live in their own file, which you open here.</p></div></div>
+    <div class="ev-start__choices wahl">
+      <button type="button" class="ev-choice" id="s-oeffnen"><span class="ev-choice__i" aria-hidden="true"><svg width="22" height="22"><use href="#i-folder"/></svg></span>
+        <span><b>Open accounting file</b><small>Choose an existing file. Saving writes back into the same file.</small></span></button>
+      <button type="button" class="ev-choice" id="s-neu"><span class="ev-choice__i" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
+        <span><b>Start a new accounting file</b><small>Your chart of accounts, no bookings. One file holds all your years.</small></span></button>
     </div>
-    <div class="wahl">
-      <button type="button" id="s-oeffnen">
-        <span class="ic" data-icon="ordner"></span>
-        <span><b>Open accounting file</b><span>Choose an existing file. Saving writes back into the same file.</span></span>
-      </button>
-      <button type="button" id="s-neu">
-        <span class="ic" data-icon="neu"></span>
-        <span><b>Start a new accounting file</b><span>Your chart of accounts, no bookings. One file holds all your years.</span></span>
-      </button>
-    </div>
-    <p class="startfuss" id="start-hinweis"></p>
-    <div class="startlook" id="startLook"><span class="row-label">Look</span></div>
+    <p class="note" id="start-hinweis"></p>
+    <div class="ev-start__look" id="startLook"><span class="field__label">Look</span></div>
   </div>
 </section>
 
-<!-- APPLICATION -->
-<div class="shell" id="shell">
-  <aside class="navleiste" id="navleiste">
-    <div class="brand"><div class="app-icon" data-app-icon></div><b>EVEN</b></div>
-    <div class="mandant">
-      <input id="mandant" aria-label="Name" autocomplete="off">
-      <small id="dateiname"></small>
+<div class="ev shell" id="shell">
+  <!-- side navigation: the computer's main control (EVEN's main device); on the phone it slides in as a sheet -->
+  <aside class="ev-side" id="side" aria-label="Navigation">
+    <div class="ev-brand">
+      <div class="app-icon" data-icon></div>
+      <div class="ev-brand__text"><b>EVEN</b><input class="ev-owner" id="mandant" aria-label="Name in the reports" autocomplete="off" title="The name on the reports; click to change"></div>
     </div>
-    <nav class="haupt" id="nav" aria-label="Sections"></nav>
-    <div class="status">
-      <div class="pruefstreifen" id="pruefstreifen" aria-live="polite"></div>
-      <div class="knopfreihe">
-        <button type="button" class="btn btn--secondary btn--sm save speichern" id="speichern"><span class="ring"></span><span class="dot"></span><span class="btn__label">Saved</span></button>
-        <button type="button" class="btn btn--ghost btn--sm btn--icon" id="ordner" hidden aria-label="Save to folder" title="Save to folder: today’s file into the app folder, the one it replaces into the backup folder"><span data-icon="ordner"></span></button>
-        <details class="dmenu" id="dmenu">
-          <summary aria-label="File and tools"><span data-icon="mehr"></span></summary>
-          <div class="panel">
-            <button type="button" data-aktion="oeffnen">Open …</button>
-            <button type="button" data-aktion="neu">New year …</button>
-            <hr>
-            <button type="button" data-aktion="speichern">Save</button>
-            <button type="button" data-aktion="speichernAls">Save as …</button>
-            <button type="button" data-aktion="kopie">Save dated copy …</button>
-            <button type="button" data-aktion="ordner">Save to folder …</button>
-            <hr>
-            <button type="button" data-aktion="export">Export …</button>
-            <button type="button" data-aktion="import">Import closing balances …</button>
-            <button type="button" data-aktion="csv">Journal as CSV</button>
-            <hr>
-            <button type="button" data-aktion="undo">Undo</button>
-            <button type="button" data-aktion="redo">Redo</button>
-            <div class="menu__build" id="buildzeile"></div>
-            <hr>
-            <button type="button" data-aktion="schliessen">Close file</button>
-          </div>
-        </details>
+    <nav class="ev-nav" id="nav" aria-label="Pages"></nav>
+    <div class="ev-side__foot">
+      <small class="ev-file" id="dateiname"></small>
+      <small class="ev-status" id="pruefstreifen" aria-live="polite"></small>
+      <div class="ev-side__actions">
+        <button type="button" class="btn btn--secondary btn--sm save" id="speichern"><span class="ring"></span><span class="dot"></span><span class="btn__label">Saved</span></button>
+        <button type="button" class="btn btn--ghost btn--sm btn--icon" id="ordner" hidden aria-label="Save to folder" title="Save to folder: today’s file into the app folder, the one it replaces into the backup folder"><svg width="18" height="18"><use href="#i-folder"/></svg></button>
+        <span id="lookSlot"></span>
+        <button type="button" class="btn btn--ghost btn--sm btn--icon" id="fileMenu" aria-label="File and tools" aria-haspopup="menu" title="File and tools"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></button>
       </div>
     </div>
   </aside>
+  <div class="ev-scrim" id="scrim" hidden></div>
 
-  <main class="arbeit wrap" id="main">
-    <header class="kopf">
-      <button type="button" class="menuknopf" id="menuknopf" aria-label="Open menu"><span data-icon="menu"></span></button>
-      <h1 id="titel">Overview</h1>
-      <div class="ctl jahr"><select id="jahrwahl" aria-label="Financial year"></select></div>
-      <div class="ctl"><select id="periode" aria-label="Period"></select></div>
-      <div class="ctl"><select id="vergleich" aria-label="Comparison column"></select></div>
-      <div class="segmented" id="rangeSeg" role="radiogroup" aria-label="Range" style="--n:2"><span class="segmented__thumb"><i></i></span>
-        <button type="button" id="bPer" class="on is-active" role="radio">Period</button>
-        <button type="button" id="bYtd" role="radio">Year to date</button>
+  <main class="ev-main" id="main">
+    <!-- the page head: what you look at (eyebrow + title) and the period controls that apply to it -->
+    <header class="ev-head">
+      <button type="button" class="btn btn--ghost btn--sm btn--icon ev-menu" id="menuknopf" aria-label="Open navigation"><svg width="20" height="20"><use href="#i-menu"/></svg></button>
+      <div class="ev-head__title">
+        <span class="eyebrow" id="eyebrow"></span>
+        <h1 class="section__title" id="pageTitle">Overview</h1>
       </div>
-      <span id="lookSlot"></span>
+      <div class="ev-head__ctl" id="ctl">
+        <span class="select-wrap"><select class="select select--pill" id="yearSel" aria-label="Financial year"></select></span>
+        <span class="select-wrap"><select class="select select--pill" id="periodSel" aria-label="Period"></select></span>
+        <div class="segmented" id="rangeSeg" role="radiogroup" aria-label="Range" style="--n:2;--i:0"><span class="segmented__thumb"><i></i></span>
+          <button type="button" class="is-active" role="radio" aria-checked="true" data-ytd="0">Period</button>
+          <button type="button" role="radio" aria-checked="false" data-ytd="1">Year to date</button>
+        </div>
+      </div>
     </header>
-    <div class="untertitel" id="untertitel"></div>
 
-    <section class="page" id="p-uebersicht">
-      <div class="card blatt" id="ue-held" data-render></div>
-      <div class="kpikarten" id="ue-leiste" data-render></div>
-      <div class="card blatt">
-        <div class="blockkopf"><h2>Income and expenses</h2>
-          <div class="legende"><span><i style="background:var(--tinte2)"></i>Income</span><span><i style="background:var(--ev-exp)"></i>Expenses</span></div></div>
-        <div id="ue-dia1" data-render></div>
-      </div>
-      <div class="zweispaltig">
-        <div class="card blatt"><div class="blockkopf"><h2>Result by month</h2></div><div id="ue-dia2" data-render></div></div>
-        <div class="card blatt"><div class="blockkopf"><h2>Net worth at month end</h2></div><div id="ue-dia3" data-render></div></div>
-      </div>
-      <div class="card blatt"><div class="blockkopf"><h2>The year in figures</h2></div><div class="tabelle" id="ue-tabelle" data-render></div></div>
-    </section>
-
-    <section class="page" id="p-ueberjahre">
-      <div class="fs-kopf"><span class="mut klein" id="ovMeta"></span></div>
-      <div id="ovCards" hidden></div>
-      <div class="card blatt">
-        <div class="blockkopf"><h2>Investments</h2><span class="klein mut" id="ovDonutMeta"></span></div>
-        <div class="donut"><svg id="ovDonut" viewBox="0 0 220 220" role="img" aria-label="Selected investments"></svg><div class="donut-liste" id="ovDonutListe" data-render></div></div>
-      </div>
-      <div class="card blatt">
-        <div class="blockkopf"><h2>Income, expenses and result by year</h2><span class="klein mut">Latest report of each financial year</span></div>
-        <div class="chart-wrap" id="ovBarWrap"><svg class="ovchart" id="ovBars" role="img" aria-label="Income, expenses and result by year"></svg><div class="tip" id="ovBarTip"></div></div>
-        <div class="legend"><span><i style="background:var(--ev-inc)"></i>Income</span><span><i style="background:var(--ev-exp)"></i>Expenses</span><span><i style="background:var(--ev-res)"></i>Result</span>
-          <span><i style="background:repeating-linear-gradient(45deg,var(--ev-split-text) 0 3px,transparent 3px 6px)"></i>Part year</span></div>
-      </div>
-      <div class="card blatt">
-        <div class="blockkopf"><h2>Net worth</h2><span class="chip" id="ovWorthChip"></span></div>
-        <div class="chart-wrap" id="ovLineWrap"><svg class="ovchart" id="ovLine" role="img" aria-label="Net worth over time"></svg><div class="tip" id="ovLineTip"></div></div>
-        <div class="legend"><span><i style="background:var(--ev-worth)"></i>Equity — net worth</span><span><i style="background:var(--ev-assets)"></i>Total assets</span></div>
+    <!-- PAGE: Overview -->
+    <section class="ev-page on" data-page="uebersicht" id="p-uebersicht">
+      <div class="kpis ev-kpis" id="kpis"></div>
+      <div class="ev-pair">
+        <div class="card">
+          <div class="card__head"><div><h2 class="card__title">Balance sheet</h2><p class="card__sub" id="bsSub"></p></div><span class="chip" id="bsCheck"></span></div>
+          <div class="ev-bal" id="balPicture"></div>
+          <div class="ev-bs" id="bsLists"></div>
+        </div>
+        <div class="card">
+          <div class="card__head"><div><h2 class="card__title">Month by month</h2><p class="card__sub" id="mmSub"></p></div></div>
+          <div class="chart" id="mmChart"></div>
+          <div class="legend"><span><i style="background:var(--ev-inc)"></i>Income</span><span><i style="background:var(--ev-exp)"></i>Expenses</span><span><i class="dash" style="border-color:var(--ev-res)"></i>Result</span></div>
+        </div>
       </div>
     </section>
 
-    <section class="page" id="p-anlagen">
-      <div class="fs-kopf"><span class="mut klein" id="invMeta"></span><span style="flex:1"></span>
-        <label class="klein mut" for="selInv">View</label><select class="eingabe" id="selInv"></select></div>
-      <div class="kpis" id="invKpis" data-render></div>
-      <div class="card blatt">
-        <div class="blockkopf"><h2>Paid in vs. value adjustment</h2><span class="chip" id="invHorizonChip"></span></div>
-        <div class="chart-wrap" id="chartWrap"><svg class="chart" id="invChart" role="img" aria-label="Investment value over time"></svg><div class="tip" id="invTip"></div></div>
-        <div class="legend"><span><i style="background:var(--ev-pay)"></i>Paid in (net contributions)</span><span><i style="background:var(--ev-pos)"></i>Value adjustment — gain</span>
-          <span><i style="background:var(--ev-neg)"></i>Value adjustment — loss</span><span><i style="background:repeating-linear-gradient(45deg,var(--ev-split-text) 0 3px,transparent 3px 6px)"></i>Forecast</span></div>
-      </div>
-      <div class="card blatt">
-        <div class="blockkopf"><h2>Forecast horizon</h2></div>
-        <div class="slider-row"><div class="yrs" id="yrsLbl"></div><input type="range" id="yrsRange" min="0" max="30" step="1" value="10" aria-label="Forecast horizon in years"><div class="klein mut" id="yrsTo"></div></div>
-      </div>
-      <div class="card blatt">
-        <div class="blockkopf"><h2>Assumptions per investment</h2><span class="klein mut">Monthly pay-in and expected annual return drive the forecast</span>
-          <button type="button" class="btn leicht mini" id="btnResetFc">Reset forecast</button></div>
-        <div class="tabelle"><table class="inv" id="invTable"></table></div>
-      </div>
-    </section>
-
-    <section class="page" id="p-sachanlagen">
-      <div class="card blatt" id="sa-held" data-render></div>
-      <div class="card blatt"><div class="leiste" id="sa-leiste" data-render></div></div>
-      <div class="zweispaltig">
-        <div class="card blatt"><div class="blockkopf"><h2>Net book value at month end</h2><span class="blattnotiz">per schedule</span></div><div id="sa-dia1" data-render></div></div>
-        <div class="card blatt"><div class="blockkopf"><h2>Depreciation by month</h2></div><div id="sa-dia2" data-render></div></div>
-      </div>
-      <div class="card blatt">
-        <div class="blockkopf"><h2>Register</h2><button type="button" class="btn leicht mini" id="sa-neu">Register an asset already on the books</button></div>
-        <div id="sa-fort" data-render></div>
-        <div class="tabelle" id="sa-tabelle" data-render></div>
-        <p class="hinweis" style="margin:10px 0 0">A purchase booked onto an account of a fixed-asset group asks for the register on its own. Straight-line to the residual value; monthly bookings against the contra account, under the asset's own plan, so they undo and roll into the next year like spreads do.</p>
-      </div>
-      <div class="card blatt"><div class="blockkopf"><h2>Schedule</h2><span class="blattnotiz" id="sa-plan-titel"></span></div><div id="sa-plan" data-render></div></div>
-    </section>
-
-    <section class="page" id="p-buchen">
-      <div class="raster r-buchen">
-        <div style="min-width:0">
-        <div class="card blatt maske" id="maske">
-          <svg class="siegel" id="siegel" viewBox="0 0 200 200" aria-hidden="true"></svg>
-          <div id="bu-banner" data-render></div>
-          <div id="bu-schnell">
-            <div class="schnell">
-              <div class="feld"><label for="bu-datum"><span>Date</span>
-                  <span><button type="button" class="kurzlink" id="bu-heute" tabindex="-1">Today</button> · <button type="button" class="kurzlink" id="bu-monatsende" tabindex="-1">End</button></span></label>
-                <input class="eingabe" id="bu-datum" inputmode="numeric" autocomplete="off" placeholder="dd.mm.yyyy" aria-describedby="bu-datum-info">
-                <div class="kontoinfo" id="bu-datum-info"></div></div>
-              <div class="feld f-text"><label for="bu-text">Text</label>
-                <input class="eingabe" id="bu-text" autocomplete="off" placeholder="What happened?"></div>
-              <div class="feld"><label for="bu-betrag">Amount</label>
-                <input class="eingabe num" id="bu-betrag" inputmode="decimal" autocomplete="off" placeholder="0.00">
-                <div class="kontoinfo" id="bu-betrag-info"></div></div>
-              <div class="feld kontofeld konto-soll"><label for="bu-soll">Debit</label>
-                <input class="eingabe" id="bu-soll" autocomplete="off" placeholder="Account">
-                <div class="kontoinfo" id="bu-soll-info"></div></div>
-              <div class="feld kontofeld konto-haben"><label for="bu-haben">Credit</label>
-                <input class="eingabe" id="bu-haben" autocomplete="off" placeholder="Account">
-                <div class="kontoinfo" id="bu-haben-info"></div></div>
-            </div>
-            <div id="bu-fw" data-render></div>
-            <div id="bu-split" data-render></div>
-          </div>
-          <div id="bu-zeilenmodus" class="zeilenmodus" hidden data-render></div>
-          <div id="bu-satz" data-render></div>
-          <div class="waage" id="bu-waage" data-render></div>
-          <div class="verteilung" id="bu-verteilung-box">
-            <label class="schalter"><input type="checkbox" id="vt-an" tabindex="-1"> Spread over months</label>
-            <div id="vt-panel" hidden>
-              <div class="vt-felder">
-                <div class="feld"><label for="vt-start">First month</label><input class="eingabe" type="month" id="vt-start"></div>
-                <div class="feld"><label for="vt-monate">Number of months</label><input class="eingabe num" type="number" id="vt-monate" min="2" max="60" step="1" value="12"></div>
-                <div class="klein mut" id="vt-erklaerung"></div>
+    <!-- PAGE: Book. The booking card (keyboard first) with its posting, spread and checks; beside it the account in focus
+         and the spreads; below it the latest bookings. The IDs are the app's (the tests drive them) -->
+    <section class="ev-page" data-page="buchen" id="p-buchen" hidden>
+      <div class="ev-book">
+        <div class="ev-book__main">
+          <div class="card ev-mask" id="maske">
+            <svg class="siegel" id="siegel" viewBox="0 0 200 200" aria-hidden="true"></svg>
+            <div class="card__head">
+              <div><h2 class="card__title" id="bu-titel">New booking</h2><p class="card__sub" id="bu-sub"></p></div>
+              <div class="segmented" id="bu-modus" role="radiogroup" aria-label="Entry" style="--n:2;--i:0"><span class="segmented__thumb"><i></i></span>
+                <button type="button" class="is-active" role="radio" aria-checked="true" data-modus="schnell" tabindex="-1">Quick</button>
+                <button type="button" role="radio" aria-checked="false" data-modus="zeilen" tabindex="-1">Lines</button>
               </div>
-              <div id="vt-vorschau" data-render></div>
+            </div>
+            <p class="ev-banner" id="bu-banner" hidden></p>
+            <!-- date and text belong to every booking; amount, debit and credit only to quick entry (Lines has its own) -->
+            <div class="ev-quick">
+                <div class="field ev-quick__datum">
+                  <label class="field__label" for="bu-datum"><span>Date</span><span class="ev-links"><button type="button" class="ev-link" id="bu-heute" tabindex="-1">Today</button><button type="button" class="ev-link" id="bu-monatsende" tabindex="-1">Month end</button></span></label>
+                  <input class="input" id="bu-datum" inputmode="numeric" autocomplete="off" placeholder="dd.mm.yyyy" aria-describedby="bu-datum-info">
+                  <span class="field__hint" id="bu-datum-info"></span>
+                </div>
+                <div class="field ev-quick__text">
+                  <label class="field__label" for="bu-text">Text</label>
+                  <input class="input" id="bu-text" autocomplete="off" placeholder="What happened?">
+                  <span class="field__hint" id="bu-text-info"></span>
+                </div>
+                <div class="field ev-quick__betrag">
+                  <label class="field__label" for="bu-betrag"><span>Amount</span><small>CHF</small></label>
+                  <input class="input num" id="bu-betrag" inputmode="decimal" autocomplete="off" placeholder="0.00">
+                  <span class="field__hint" id="bu-betrag-info"></span>
+                </div>
+                <div class="ev-quick__konten">
+                  <div class="field">
+                    <label class="field__label" for="bu-soll">Debit</label>
+                    <input class="input" id="bu-soll" autocomplete="off" placeholder="Account number or name">
+                    <span class="field__hint ev-kinfo" id="bu-soll-info"></span>
+                  </div>
+                  <span class="ev-quick__to" aria-hidden="true">→</span>
+                  <div class="field">
+                    <label class="field__label" for="bu-haben">Credit</label>
+                    <input class="input" id="bu-haben" autocomplete="off" placeholder="Account number or name">
+                    <span class="field__hint ev-kinfo" id="bu-haben-info"></span>
+                  </div>
+                </div>
+              </div>
+            <div id="bu-schnell">
+              <div class="ev-fxrow" id="bu-fw" hidden></div>
+              <div class="ev-split" id="bu-split" hidden></div>
+            </div>
+            <div class="ev-lines" id="bu-zeilen" hidden></div>
+            <div class="ev-post">
+              <div class="ev-post__sides" id="bu-satz"></div>
+              <div class="ev-beam" id="bu-waage"></div>
+            </div>
+            <div class="ev-vt" id="bu-verteilung-box">
+              <label class="switch switch--sm"><span><b>Spread over months</b><small>Book the amount now and release it month by month</small></span><input type="checkbox" id="vt-an" tabindex="-1"></label>
+              <div class="ev-vt__panel" id="vt-panel" hidden>
+                <div class="ev-vt__fields">
+                  <div class="field"><label class="field__label" for="vt-start">First month</label><input class="input" type="month" id="vt-start"></div>
+                  <div class="field"><label class="field__label" for="vt-monate">Months</label><input class="input num" type="number" id="vt-monate" min="2" max="60" step="1" value="12"></div>
+                  <p class="note" id="vt-erklaerung"></p>
+                </div>
+                <div id="vt-vorschau"></div>
+              </div>
+            </div>
+            <div class="ev-checks" id="bu-pruefungen" aria-live="polite"></div>
+            <div class="ev-actions">
+              <button type="button" class="btn btn--primary" id="bu-ok"><span class="btn__label">Book</span><kbd>⏎</kbd></button>
+              <button type="button" class="btn btn--secondary" id="bu-kopie" hidden>Copy as new booking</button>
+              <button type="button" class="btn btn--ghost" id="bu-reset" tabindex="-1">Clear</button>
+              <span class="spacer"></span>
+              <button type="button" class="btn btn--quiet-danger" id="bu-del" hidden>Delete</button>
             </div>
           </div>
-          <div class="pruefungen" id="bu-pruefungen" data-render></div>
-          <div class="aktionen">
-            <button type="button" class="btn" id="bu-ok">Book <kbd>⏎</kbd></button>
-            <button type="button" class="btn leicht" id="bu-kopie" hidden>Copy as new booking</button>
-            <button type="button" class="btn leicht" id="bu-reset" tabindex="-1">Clear</button>
-            <button type="button" class="kurzlink" id="bu-modus" tabindex="-1">Enter as lines</button>
-            <span style="flex:1"></span>
-            <button type="button" class="btn gefahr" id="bu-del" hidden>Delete</button>
+          <div class="card no-float">
+            <div class="card__head"><div><h2 class="card__title">Latest bookings</h2><p class="card__sub">The last 20 entered · a click opens one</p></div></div>
+            <div class="ev-jo ev-latest" id="bu-letzte"></div>
           </div>
         </div>
-        <div class="card blatt eng">
-          <div class="blockkopf"><h2>Latest bookings</h2><span class="blattnotiz">last 20 entered · click to edit</span></div>
-          <div class="tabelle" id="bu-letzte" data-render></div>
-        </div>
-        </div>
-        <div>
-          <div class="card blatt eng"><h2 id="bu-verlauf-titel">Recent bookings</h2><div id="bu-verlauf-saldo" data-render></div><div class="seitenliste verlauf" id="bu-verlauf" data-render></div></div>
-          <div class="card blatt eng"><h2>Spreads</h2><div class="seitenliste" id="bu-plaene" data-render></div></div>
+        <div class="ev-book__side">
+          <div class="card">
+            <div class="card__head"><div><h2 class="card__title" id="bu-verlauf-titel">Recent bookings</h2><p class="card__sub">A click copies into the form</p></div>
+              <button type="button" class="btn btn--ghost btn--sm" id="bu-zumKonto" hidden>Ledger</button></div>
+            <div id="bu-verlauf-saldo"></div>
+            <div class="ev-recents" id="bu-verlauf"></div>
+          </div>
+          <div class="card">
+            <div class="card__head"><div><h2 class="card__title">Spreads</h2><p class="card__sub">Amounts released month by month</p></div></div>
+            <div class="ev-plans" id="bu-plaene"></div>
+          </div>
         </div>
       </div>
     </section>
 
-    <section class="page" id="p-journal">
-      <div class="card blatt">
-        <div class="suche">
-          <input class="eingabe" type="search" id="jo-suche" placeholder="Search text, account or amount">
-          <button type="button" class="btn leicht" id="jo-auf">Expand all</button>
-          <button type="button" class="btn leicht" id="jo-zu">Collapse all</button>
-          <button type="button" class="btn leicht" id="jo-xlsx" title="All bookings of the financial year as Excel">Excel (year)</button>
-          <button type="button" class="btn leicht" id="jo-pdf" title="All bookings of the financial year as PDF">PDF (year)</button>
+    <!-- PAGE: Journal. The year's bookings by month, newest first; a click opens a booking in Book -->
+    <section class="ev-page" data-page="journal" id="p-journal" hidden>
+      <div class="ev-tools">
+        <label class="field ev-search"><span class="affix affix--left"><svg width="17" height="17"><use href="#i-search"/></svg><input class="input" id="jo-suche" type="search" placeholder="Search text, voucher, account or amount" autocomplete="off"></span></label>
+        <button type="button" class="btn btn--ghost btn--sm" id="jo-auf">Expand all</button>
+        <button type="button" class="btn btn--ghost btn--sm" id="jo-zu">Collapse all</button>
+        <!-- one export: exactly the period chosen in the head of the page -->
+        <div class="ev-export" role="group" aria-label="Export">
+          <span class="ev-export__what"><small>Export</small><b id="jo-export"></b></span>
+          <button type="button" class="btn btn--ghost btn--sm" id="jo-xlsx">Excel</button>
+          <button type="button" class="btn btn--ghost btn--sm" id="jo-pdf">PDF</button>
         </div>
-        <div id="jo-liste" data-render></div>
       </div>
+      <div class="groups" id="jo-liste"></div>
     </section>
 
-    <section class="page" id="p-hauptbuch">
-      <div class="card blatt">
-        <div style="display:flex;flex-wrap:wrap;gap:10px 16px;align-items:flex-start;margin-bottom:16px">
-          <div class="feld kontofeld" style="flex:1 1 320px;max-width:520px">
-            <label for="hb-konto">Account</label>
-            <input class="eingabe" type="text" id="hb-konto" autocomplete="off" placeholder="Number or name">
-            <div class="kontoinfo" id="hb-info"></div>
+    <!-- PAGE: Ledger. One account in the window of the page head -->
+    <section class="ev-page" data-page="hauptbuch" id="p-hauptbuch" hidden>
+      <div class="card">
+        <div class="ev-hb-top">
+          <div class="field ev-hb-konto">
+            <label class="field__label" for="hb-konto">Account</label>
+            <input class="input" id="hb-konto" autocomplete="off" placeholder="Number or name">
+            <span class="field__hint" id="hb-info"></span>
           </div>
-          <div class="feld">
-            <label for="hb-export-zeit">Export this account</label>
-            <div style="display:flex;gap:8px;flex-wrap:wrap">
-              <select class="eingabe" id="hb-export-zeit" style="width:auto;min-width:150px" aria-label="Export period"></select>
-              <button type="button" class="btn leicht" id="hb-xlsx">Excel</button>
-              <button type="button" class="btn leicht" id="hb-pdf">PDF</button>
+          <div class="ev-hb-actions">
+            <!-- one export: this account over exactly the period chosen in the head of the page -->
+            <div class="ev-export" role="group" aria-label="Export">
+              <span class="ev-export__what"><small>Export</small><b id="hb-export"></b></span>
+              <button type="button" class="btn btn--ghost btn--sm" id="hb-xlsx">Excel</button>
+              <button type="button" class="btn btn--ghost btn--sm" id="hb-pdf">PDF</button>
             </div>
+            <button type="button" class="btn btn--secondary btn--sm" id="hb-zumBuchen">Book on it</button>
           </div>
         </div>
-        <div class="tabelle" id="hb-inhalt" data-render></div>
+        <div class="ev-figs" id="hb-summe"></div>
+        <div class="chart ev-hb-line" id="hb-linie"></div>
       </div>
+      <div class="ev-tools ev-hb-tools">
+        <span class="ev-hb-tools__t" id="hb-zaehler"></span>
+        <button type="button" class="btn btn--ghost btn--sm" id="hb-auf">Expand all</button>
+        <button type="button" class="btn btn--ghost btn--sm" id="hb-zu">Collapse all</button>
+      </div>
+      <div class="groups" id="hb-inhalt"></div>
     </section>
 
-    <section class="page" id="p-bilanz">
-      <div class="fs-kopf">
-        <div class="ctl fs-wahl"><select class="fs-p" aria-label="Report"></select><span class="vs">compared with</span><select class="fs-c" aria-label="Compare with"></select></div>
-        <div class="fs-rechts"><label class="schalter klein"><input type="checkbox" class="fs-var"> Variances</label><label class="schalter klein"><input type="checkbox" id="bi-null"> Nil balances</label><div class="seg fs-klapp"><button type="button" data-expand="bi-tab">Expand all</button><button type="button" data-collapse="bi-tab">Collapse all</button></div></div>
-      </div>
-      <div class="card blatt"><div class="blockkopf"><h2>Statement of financial position</h2></div>
-        <div class="tabelle fs-tabelle"><table class="abschluss" id="bi-tab"></table></div><div id="bi-check" data-render></div></div>
-    </section>
-    <section class="page" id="p-erfolg">
-      <div class="fs-kopf">
-        <div class="ctl fs-wahl"><select class="fs-p" aria-label="Report"></select><span class="vs">compared with</span><select class="fs-c" aria-label="Compare with"></select></div>
-        <div class="fs-rechts"><label class="schalter klein"><input type="checkbox" class="fs-var"> Variances</label><label class="schalter klein"><input type="checkbox" id="er-null"> Nil balances</label><div class="seg fs-klapp"><button type="button" data-expand="er-tab">Expand all</button><button type="button" data-collapse="er-tab">Collapse all</button></div></div>
-      </div>
-      <div class="card blatt"><div class="blockkopf"><h2>Statement of income and expenses</h2></div>
-        <div class="tabelle fs-tabelle"><table class="abschluss" id="er-tab"></table></div><div id="er-check" data-render></div></div>
-    </section>
-    <section class="page" id="p-geldfluss">
-      <div class="fs-kopf">
-        <div class="ctl fs-wahl"><select class="fs-p" aria-label="Report"></select><span class="vs">compared with</span><select class="fs-c" aria-label="Compare with"></select></div>
-        <div class="fs-rechts"><div class="seg fs-klapp"><button type="button" data-expand="gf-tab">Expand all</button><button type="button" data-collapse="gf-tab">Collapse all</button></div></div>
-      </div>
-      <div class="card blatt"><div class="blockkopf"><h2>Cash flow statement</h2><span class="blattnotiz">Direct method, from the bookings</span></div>
-        <div class="tabelle fs-tabelle"><table class="abschluss" id="gf-tab"></table></div><div id="gf-check" data-render></div><div id="gf-note" data-render></div></div>
-    </section>
-
-    <section class="page" id="p-monate">
-      <div class="card blatt">
-        <div class="blockkopf"><h2>Income statement by month</h2>
-          <span style="display:flex;gap:8px"><button type="button" class="btn leicht mini" data-alle="monate" data-auf="1">Expand all</button><button type="button" class="btn leicht mini" data-alle="monate" data-auf="0">Collapse all</button>
-          <button type="button" class="btn leicht mini" id="mo-export">Export …</button></span></div>
-        <div class="monate" id="mo-erfolg" data-render></div>
-      </div>
-      <div class="card blatt">
-        <div class="blockkopf"><h2>Balance sheet at each month end</h2></div>
-        <div class="monate" id="mo-bilanz" data-render></div>
-      </div>
-    </section>
-
-    <section class="page" id="p-jahre">
-      <div class="card blatt">
-        <div class="blockkopf"><h2>Income statement by year</h2>
-          <span style="display:flex;gap:8px;align-items:center"><label class="schalter" style="font-size:13px"><input type="checkbox" id="ja-delta"> Show changes</label>
-          <button type="button" class="btn leicht mini" data-alle="jahre" data-auf="1">Expand all</button><button type="button" class="btn leicht mini" data-alle="jahre" data-auf="0">Collapse all</button></span></div>
-        <div class="monate jahre" id="ja-erfolg" data-render></div>
-      </div>
-      <div class="card blatt">
-        <div class="blockkopf"><h2>Balance sheet at each year end</h2></div>
-        <div class="monate jahre" id="ja-bilanz" data-render></div>
-      </div>
-    </section>
-
-    <section class="page" id="p-konten">
-      <div class="card blatt">
-        <h2>Add account</h2>
-        <div style="display:grid;grid-template-columns:110px minmax(0,1fr) 280px auto;gap:10px;align-items:end;margin-top:10px">
-          <div class="feld"><label for="kt-nr">Number</label><input class="eingabe" type="text" id="kt-nr" placeholder="1020.3"></div>
-          <div class="feld"><label for="kt-name">Name</label><input class="eingabe" type="text" id="kt-name" placeholder="Bank account GBP"></div>
-          <div class="feld"><label for="kt-grp">Group</label><select class="eingabe" id="kt-grp"></select></div>
-          <button type="button" class="btn" id="kt-add">Add</button>
+    <!-- PAGE: Balance sheet, Income statement, Cash flow. One page: report and comparison, the key figures, the statement
+         sheet with its check line; data-st says which statement a piece belongs to -->
+    <section class="ev-page" data-page="bilanz" id="p-bilanz" hidden>
+      <div class="ev-st-bar">
+        <div class="field"><label class="field__label" for="st-p">Report</label><span class="select-wrap"><select class="select select--pill" id="st-p"></select></span></div>
+        <div class="field"><label class="field__label" for="st-c">Compared with</label><span class="select-wrap"><select class="select select--pill" id="st-c"></select></span></div>
+        <div class="ev-st-bar__opts">
+          <label class="check" data-st="bilanz erfolg"><input type="checkbox" id="st-var" checked> Change</label>
+          <label class="check" data-st="bilanz erfolg"><input type="checkbox" id="st-null"> Zero lines</label>
+          <button type="button" class="btn btn--ghost btn--sm" id="st-auf">Expand all</button>
+          <button type="button" class="btn btn--ghost btn--sm" id="st-zu">Collapse all</button>
+        </div>
+        <div class="ev-export" role="group" aria-label="Export">
+          <span class="ev-export__what"><small>Export</small><b>Financial statements</b></span>
+          <button type="button" class="btn btn--ghost btn--sm" id="st-xlsx">Excel</button>
+          <button type="button" class="btn btn--ghost btn--sm" id="st-pdf">PDF</button>
         </div>
       </div>
-      <div class="card blatt"><div class="tabelle" id="kt-liste" data-render></div></div>
-      <div class="zweispaltig">
-        <div class="card blatt"><h2>System accounts and settings</h2><div id="kt-system" data-render></div></div>
-        <div class="card blatt"><h2>Foreign currencies</h2><div id="wa-liste" data-render></div></div>
+      <div class="ev-figs ev-st-figs" id="st-figs"></div>
+      <div class="card ev-st-card no-float">
+        <div id="st-bilanz" data-st="bilanz"></div>
+        <div id="st-erfolg" data-st="erfolg"></div>
+        <div id="st-geldfluss" data-st="geldfluss"></div>
+        <div class="ev-st__checks" id="st-check"></div>
+      </div>
+      <div class="groups ev-st-notes" id="st-notiz" data-st="geldfluss"></div>
+    </section>
+
+    <!-- PAGE: Twelve months. Every account, every month, as one even sheet -->
+    <section class="ev-page" data-page="monate" id="p-monate" hidden>
+      <div class="ev-tools">
+        <span class="ev-hb-tools__t">Every account, every month · a click on an account opens its Ledger</span>
+        <button type="button" class="btn btn--ghost btn--sm" id="mo-auf">Expand all</button>
+        <button type="button" class="btn btn--ghost btn--sm" id="mo-zu">Collapse all</button>
+      </div>
+      <div class="card ev-st-card no-float"><div class="card__head ev-st-card__head"><div><h2 class="card__title">Income statement</h2><p class="card__sub">Each month on its own, the year on the right</p></div></div><div id="mo-erfolg"></div></div>
+      <div class="card ev-st-card no-float"><div class="card__head ev-st-card__head"><div><h2 class="card__title">Balance sheet</h2><p class="card__sub">At each month end</p></div></div><div id="mo-bilanz"></div></div>
+    </section>
+
+    <!-- PAGE: Years. The full years of this file and the imported closings side by side -->
+    <section class="ev-page" data-page="jahre" id="p-jahre" hidden>
+      <div class="ev-tools">
+        <span class="ev-hb-tools__t">Full years side by side · a click on an account opens its Ledger</span>
+        <label class="check"><input type="checkbox" id="ja-delta"> Show changes</label>
+        <button type="button" class="btn btn--ghost btn--sm" id="ja-auf">Expand all</button>
+        <button type="button" class="btn btn--ghost btn--sm" id="ja-zu">Collapse all</button>
+      </div>
+      <div class="card ev-st-card no-float"><div class="card__head ev-st-card__head"><div><h2 class="card__title">Income statement</h2></div></div><div id="ja-erfolg"></div></div>
+      <div class="card ev-st-card no-float"><div class="card__head ev-st-card__head"><div><h2 class="card__title">Balance sheet</h2><p class="card__sub">At each year end</p></div></div><div id="ja-bilanz"></div></div>
+    </section>
+
+    <!-- PAGE: Overview (Years). Every year of the file: key figures, income and expenses by year, net worth, the investments -->
+    <section class="ev-page" data-page="ueberjahre" id="p-ueberjahre" hidden>
+      <div class="ev-figs ev-st-figs" id="oj-figs"></div>
+      <div class="ev-pair ev-pair--top">
+        <div class="card">
+          <div class="card__head"><div><h2 class="card__title">Income, expenses and result by year</h2><p class="card__sub">The latest report of each year · a running year is hatched</p></div></div>
+          <div class="chart ev-chart" id="oj-balken"></div>
+          <div class="legend"><span><i style="background:var(--ev-inc)"></i>Income</span><span><i style="background:var(--ev-exp)"></i>Expenses</span><span><i class="dash" style="border-color:var(--ev-res)"></i>Result</span><span><i class="ev-hatch-key"></i>Part year</span></div>
+        </div>
+        <div class="card">
+          <div class="card__head"><div><h2 class="card__title">Net worth</h2><p class="card__sub">At every month end</p></div><span class="chip" id="oj-worth-chip"></span></div>
+          <div class="chart ev-chart" id="oj-linie"></div>
+          <div class="legend"><span><i style="background:var(--ev-worth)"></i>Net worth</span><span><i class="dash" style="border-color:var(--ev-assets)"></i>Total assets</span></div>
+        </div>
+      </div>
+      <div class="card ev-donut-card">
+        <div class="card__head"><div><h2 class="card__title">Investments</h2><p class="card__sub" id="oj-donut-sub"></p></div><button type="button" class="btn btn--ghost btn--sm" id="oj-zuInv">Investments</button></div>
+        <div id="oj-donut"></div>
       </div>
     </section>
 
-    <section class="page" id="p-aufbau">
-      <div class="card blatt"><h2>Balance sheet groups</h2>
-        <p class="hinweis">Order, name and section of each group. Every statement page, the cash flow, the exports and the reports follow this page. The cash-flow setting applies to every account in the group; single accounts can deviate in the chart of accounts, and Statement settings can override it per account.</p>
-        <div class="tabelle" id="gr-bilanz" data-render></div></div>
-      <div class="card blatt"><h2>Income statement groups</h2>
-        <p class="hinweis">A running subtotal follows the group and adds up from the top. A block total adds the groups since the previous subtotal. Leave empty for none. Subtotals named Total income, Gross result, EBITDA, EBIT and EBT are recognised by the overview and the key figures.</p>
-        <div class="tabelle" id="gr-erfolg" data-render></div></div>
-      <div class="card blatt"><h2>Add group</h2>
-        <div style="display:grid;grid-template-columns:minmax(0,1fr) 250px 250px auto;gap:10px;align-items:end;margin-top:10px">
-          <div class="feld"><label for="gr-name">Name</label><input class="eingabe" type="text" id="gr-name" placeholder="Pets"></div>
-          <div class="feld"><label for="gr-sek">Section</label><select class="eingabe" id="gr-sek"></select></div>
-          <button type="button" class="btn" id="gr-add">Add</button>
-        </div></div>
-      <div class="card blatt"><h2>Labels</h2><div id="gr-titel" data-render></div></div>
-    </section>
-
-    <section class="page" id="p-fsmapping">
-      <div class="card blatt">
-        <div class="blockkopf"><h2>Cash flow classes</h2><label class="schalter klein"><input type="checkbox" id="cfShowAll"> Show every account</label></div>
-        <p class="hinweis">Where the cash of each balance sheet account goes in the cash flow statement. An account in <b>Cash</b> counts like a bank account; a credit card there counts like one with a negative balance, so card purchases show under their category. Income and expense accounts are always operating; the FX accounts and unrealised value changes are exchange rate effects. <b>Shown under</b> puts the cash of an operating account on an income statement line instead of its own (taxes paid under Direct taxes). Prepayments booked as spreads always show under the accounts the spread releases to. Amounts: cash flow between the two reports chosen on the statement pages.</p>
-        <div class="tabelle"><table class="inv" id="cfMapTable"></table></div>
+    <!-- PAGE: Investments. Paid in against value, the forecast, the assumptions per investment -->
+    <section class="ev-page" data-page="anlagen" id="p-anlagen" hidden>
+      <div class="ev-st-bar">
+        <div class="field"><label class="field__label" for="inv-view">View</label><span class="select-wrap"><select class="select select--pill" id="inv-view"></select></span></div>
       </div>
-      <div class="card blatt">
-        <div class="blockkopf"><h2>Investments</h2></div>
-        <p class="hinweis">Which accounts make up each investment: the pay-in accounts and the account holding its value adjustment.</p>
-        <div class="tabelle"><table class="inv" id="invMapTable"></table></div>
-        <button type="button" class="btn leicht mini" id="btnRedetect" style="margin-top:12px">Detect again from the accounts</button>
+      <div class="ev-figs ev-st-figs" id="inv-figs"></div>
+      <div class="card">
+        <div class="card__head"><div><h2 class="card__title">Paid in and value</h2><p class="card__sub">The months so far, then the forecast on the hatched band</p></div><span class="chip" id="inv-horizont"></span></div>
+        <div class="chart ev-chart" id="inv-chart"></div>
+        <div class="legend"><span><i style="background:var(--ev-pay)"></i>Paid in</span><span><i style="background:var(--ev-val)"></i>Value</span><span><i class="ev-hatch-key"></i>Forecast</span></div>
+        <div class="ev-horizon">
+          <label class="field__label" for="inv-jahre">Forecast horizon</label>
+          <input type="range" class="ev-range" id="inv-jahre" min="0" max="30" step="1" value="10">
+          <span class="ev-horizon__v"><b id="inv-jahre-l"></b><small id="inv-bis"></small></span>
+        </div>
+      </div>
+      <div class="card ev-st-card no-float">
+        <div class="card__head ev-st-card__head"><div><h2 class="card__title">Assumptions per investment</h2><p class="card__sub">Monthly pay-in and expected annual return drive the forecast</p></div><button type="button" class="btn btn--ghost btn--sm" id="inv-reset">Reset forecast</button></div>
+        <div id="inv-tabelle"></div>
       </div>
     </section>
 
-    <section class="page" id="p-vergleich">
-      <div class="card blatt">
-        <div class="blockkopf"><h2>Years in this file</h2></div>
-        <p class="hinweis">Each year opens with the closing of the year before: balance sheet accounts carry over, equity and the result roll into the equity-at-beginning account. Nothing is booked for that. A closed year is read-only; reopen it to change a booking.</p>
-        <div class="tabelle" id="vg-jahre" data-render></div>
-        <div id="vg-backup" data-render style="margin-top:14px"></div>
+    <!-- PAGE: Fixed assets. The register, its depreciation and the schedule of one asset -->
+    <section class="ev-page" data-page="sachanlagen" id="p-sachanlagen" hidden>
+      <div class="card ev-sa-head">
+        <div class="ev-sa-head__donut"><h2 class="card__title">Net book value by asset</h2><div id="sa-donut"></div></div>
+        <div class="ev-figs ev-figs--grid" id="sa-figs"></div>
       </div>
-      <div class="card blatt">
-        <div class="blockkopf"><h2>Imported closings</h2>
-          <button type="button" class="btn" id="vg-import">Import closing balances</button></div>
-        <p class="hinweis">Closing balance lists from Banana, Abacus, Excel or this program, for years without bookings in this file. Only the balance per account is stored. The closing of the year just before the first booked year is its opening balance.</p>
-        <div class="tabelle" id="vg-liste" data-render></div>
+      <div id="sa-offen"></div>
+      <div class="ev-pair">
+        <div class="card"><div class="card__head"><div><h2 class="card__title">Net book value at month end</h2><p class="card__sub">Per schedule</p></div></div><div class="chart ev-chart ev-chart--short" id="sa-chart1"></div></div>
+        <div class="card"><div class="card__head"><div><h2 class="card__title">Depreciation by month</h2><p class="card__sub">Months still to come are lighter</p></div></div><div class="chart ev-chart ev-chart--short" id="sa-chart2"></div></div>
       </div>
-      <div class="card blatt">
-        <div class="blockkopf"><h2>Comparison file</h2></div>
-        <p class="hinweis">Another accounting file with all its bookings, for example last year. It is only read, never changed, and evaluated with the structure of this file.</p>
-        <div id="vg-datei" data-render></div>
+      <div class="card ev-st-card no-float ev-gap-top">
+        <div class="card__head ev-st-card__head"><div><h2 class="card__title">Register</h2><p class="card__sub">A click on an asset shows its schedule</p></div><button type="button" class="btn btn--secondary btn--sm" id="sa-neu">Register an asset already on the books</button></div>
+        <div id="sa-register"></div>
+        <p class="note ev-sa-note">A purchase booked onto an asset account asks for the register on its own. Straight-line to the residual value; monthly bookings against the contra account, under the asset's own plan, so they undo and roll into the next year like spreads do.</p>
+      </div>
+      <div class="card ev-st-card no-float ev-gap-top" id="sa-plan-card">
+        <div class="card__head ev-st-card__head"><div><h2 class="card__title" id="sa-plan-titel">Schedule</h2><p class="card__sub" id="sa-plan-sub"></p></div></div>
+        <div id="sa-plan"></div>
+      </div>
+    </section>
+
+    <!-- PAGE: Accounts. Add one, the chart by group, system accounts, currencies -->
+    <section class="ev-page" data-page="konten" id="p-konten" hidden>
+      <div class="card ev-add">
+        <h2 class="card__title">Add account</h2>
+        <div class="ev-add__grid">
+          <div class="field"><label class="field__label" for="kt-nr">Number</label><input class="input" id="kt-nr" placeholder="1020.3" autocomplete="off"></div>
+          <div class="field"><label class="field__label" for="kt-name">Name</label><input class="input" id="kt-name" placeholder="Bank account GBP" autocomplete="off"></div>
+          <div class="field"><label class="field__label" for="kt-grp">Group</label><span class="select-wrap"><select class="select" id="kt-grp"></select></span></div>
+          <button type="button" class="btn btn--primary" id="kt-add">Add</button>
+        </div>
+      </div>
+      <div class="ev-tools ev-gap-top">
+        <label class="field ev-search"><span class="affix affix--left"><svg width="17" height="17"><use href="#i-search"/></svg><input class="input" id="kt-suche" type="search" placeholder="Search number, name or group" autocomplete="off"></span></label>
+        <label class="check"><input type="checkbox" id="kt-benutzt"> Only accounts in use</label>
+        <button type="button" class="btn btn--ghost btn--sm" id="kt-auf">Expand all</button>
+        <button type="button" class="btn btn--ghost btn--sm" id="kt-zu">Collapse all</button>
+      </div>
+      <div class="groups" id="kt-liste"></div>
+      <div class="ev-stack">
+        <div class="card ev-st-card no-float"><div class="card__head ev-st-card__head"><div><h2 class="card__title">System accounts and settings</h2><p class="card__sub">Accounts the program books to by itself</p></div></div><div id="kt-system"></div></div>
+        <div class="card ev-st-card no-float"><div class="card__head ev-st-card__head"><div><h2 class="card__title">Foreign currencies</h2><p class="card__sub">Rates and the revaluation of foreign-currency accounts</p></div></div><div class="ev-pad" id="wa-liste"></div></div>
+      </div>
+    </section>
+
+    <!-- PAGE: Structure. The groups of both statements, their order and subtotals, the labels -->
+    <section class="ev-page" data-page="aufbau" id="p-aufbau" hidden>
+      <div class="card ev-st-card no-float"><div class="card__head ev-st-card__head"><div><h2 class="card__title">Balance sheet groups</h2>
+        <p class="card__sub">Order, name and section of each group. Every statement, the cash flow, the exports and the reports follow this page.</p></div></div><div id="gr-bilanz"></div></div>
+      <div class="card ev-st-card no-float ev-gap-top"><div class="card__head ev-st-card__head"><div><h2 class="card__title">Income statement groups</h2>
+        <p class="card__sub">A running subtotal adds up from the top; a block total adds the groups since the previous subtotal. Subtotals named Total income, Gross result, EBITDA, EBIT and EBT feed the key figures.</p></div></div><div id="gr-erfolg"></div></div>
+      <div class="ev-pair">
+        <div class="card ev-add"><h2 class="card__title">Add group</h2>
+          <div class="ev-add__grid ev-add__grid--3">
+            <div class="field"><label class="field__label" for="gr-name">Name</label><input class="input" id="gr-name" placeholder="Pets" autocomplete="off"></div>
+            <div class="field"><label class="field__label" for="gr-sek">Section</label><span class="select-wrap"><select class="select" id="gr-sek"></select></span></div>
+            <button type="button" class="btn btn--primary" id="gr-add">Add</button>
+          </div></div>
+        <div class="card ev-st-card no-float"><div class="card__head ev-st-card__head"><div><h2 class="card__title">Labels</h2><p class="card__sub">The headings of the statements</p></div></div><div id="gr-titel"></div></div>
+      </div>
+    </section>
+
+    <!-- PAGE: Statement settings. Cash flow class per account, the investments -->
+    <section class="ev-page" data-page="fsmapping" id="p-fsmapping" hidden>
+      <div class="card ev-st-card no-float">
+        <div class="card__head ev-st-card__head"><div><h2 class="card__title">Cash flow classes</h2>
+          <p class="card__sub">Where the cash of each balance sheet account goes in the cash flow statement. “Shown under” puts an operating account on an income statement line (taxes paid under Direct taxes).</p></div>
+          <label class="switch switch--sm ev-switch-inline"><span><b>Show every account</b></span><input type="checkbox" id="cf-alle"></label></div>
+        <div id="fs-cf"></div>
+      </div>
+      <div class="card ev-st-card no-float ev-gap-top">
+        <div class="card__head ev-st-card__head"><div><h2 class="card__title">Investments</h2><p class="card__sub">Which accounts make up each investment, and which go on the charts of Overview (Years) and Investments</p></div>
+          <button type="button" class="btn btn--ghost btn--sm" id="fs-neu">Detect again</button></div>
+        <div id="fs-inv"></div>
+      </div>
+    </section>
+
+    <!-- PAGE: Years and closings. The years of the file, imported closings, a comparison file -->
+    <section class="ev-page" data-page="vergleich" id="p-vergleich" hidden>
+      <div class="card ev-st-card no-float">
+        <div class="card__head ev-st-card__head"><div><h2 class="card__title">Years in this file</h2>
+          <p class="card__sub">Each year opens with the closing of the year before; nothing is booked for that. A closed year is read-only; reopen it to change a booking.</p></div></div>
+        <div id="vg-jahre"></div>
+        <div class="ev-pad" id="vg-ordner"></div>
+      </div>
+      <div class="card ev-st-card no-float ev-gap-top">
+        <div class="card__head ev-st-card__head"><div><h2 class="card__title">Imported closings</h2><p class="card__sub">Balance lists for years without bookings here. The closing of the year before the first booked year is its opening balance.</p></div>
+          <button type="button" class="btn btn--secondary btn--sm" id="vg-import">Import closing balances</button></div>
+        <div id="vg-liste"></div>
+      </div>
+      <div class="card ev-gap-top">
+        <div class="card__head"><div><h2 class="card__title">Comparison file</h2><p class="card__sub">Another accounting file with all its bookings, for example last year. It is only read, never changed.</p></div>
+          <button type="button" class="btn btn--secondary btn--sm" id="vg-datei">Open comparison file</button></div>
+        <div class="ev-pad" id="vg-vgl"></div>
       </div>
     </section>
   </main>
 </div>
 
-<!-- DIALOGS -->
-<div class="hg" id="dlg-frage" role="dialog" aria-modal="true">
-  <div class="dlg"><h3 id="fr-titel"></h3><div class="lead" id="fr-text"></div><div class="knoepfe" id="fr-knoepfe"></div></div>
+<!-- the question dialog: one, always in the page (the file code and the tests know it by these names) -->
+<div class="overlay ev-frage" id="dlg-frage" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="fr-titel">
+  <div class="modal__head"><div><h2 class="modal__title" id="fr-titel"></h2><div class="modal__text" id="fr-text"></div></div></div>
+  <div class="modal__actions" id="fr-knoepfe"></div>
+</div></div>
+<!-- the file menu, opened by the ⋯ button in the side navigation -->
+<div class="menu ev-filemenu" id="dmenu" role="menu" hidden>
+  <button type="button" class="menu__item" role="menuitem" data-aktion="oeffnen"><span>Open …</span></button>
+  <button type="button" class="menu__item" role="menuitem" data-aktion="neu"><span>New year …</span></button>
+  <div class="ev-menu-sep" role="separator"></div>
+  <button type="button" class="menu__item" role="menuitem" data-aktion="speichern"><span>Save</span></button>
+  <button type="button" class="menu__item" role="menuitem" data-aktion="speichernAls"><span>Save as …</span></button>
+  <button type="button" class="menu__item" role="menuitem" data-aktion="kopie"><span>Save dated copy …</span></button>
+  <button type="button" class="menu__item" role="menuitem" data-aktion="ordner"><span>Save to folder …</span></button>
+  <div class="ev-menu-sep" role="separator"></div>
+  <button type="button" class="menu__item" role="menuitem" data-aktion="export"><span>Export …</span></button>
+  <button type="button" class="menu__item" role="menuitem" data-aktion="import"><span>Import closing balances …</span></button>
+  <button type="button" class="menu__item" role="menuitem" data-aktion="csv"><span>Journal as CSV</span></button>
+  <div class="ev-menu-sep" role="separator"></div>
+  <button type="button" class="menu__item" role="menuitem" data-aktion="undo"><span>Undo</span></button>
+  <button type="button" class="menu__item" role="menuitem" data-aktion="redo"><span>Redo</span></button>
+  <div class="ev-menu-sep" role="separator"></div>
+  <button type="button" class="menu__item" role="menuitem" data-aktion="schliessen"><span>Close file</span></button>
+  <div class="ev-menu-build" id="buildzeile"></div>
 </div>
-
-<div class="hg" id="dlg-export" role="dialog" aria-modal="true">
-  <div class="dlg gross">
-    <h3>Export</h3>
-    <div class="feld" style="max-width:220px"><label for="ex-status">Status of the PDF reports</label><select class="eingabe" id="ex-status">
-      <option value="entwurf">Draft</option><option value="definitiv">Final</option></select></div>
-    <div class="schritt">
-      <h4>Financial statements</h4>
-      <p class="lead" style="margin:0 0 10px" id="ex-fs-info">Overview, balance sheet, income statement, cash flow and investments for the report and comparison chosen on the statement pages.</p>
-      <div class="knoepfe" style="justify-content:flex-start;margin-top:0">
-        <button type="button" class="btn" id="ex-fs-pdf">PDF detailed</button><button type="button" class="btn leicht" id="ex-fs-sum">PDF summarized</button><button type="button" class="btn leicht" id="ex-fs-xlsx">Excel</button></div>
-    </div>
-    <div class="schritt">
-      <h4>Twelve months</h4>
-      <p class="lead" style="margin:0 0 10px">Income statement per month and balance sheet at each month end, January to December.</p>
-      <div class="knoepfe" style="justify-content:flex-start;margin-top:0">
-        <button type="button" class="btn leicht" id="ex-mo-xlsx">Excel</button><button type="button" class="btn leicht" id="ex-mo-pdf">PDF</button></div>
-    </div>
-    <div id="ex-hinweise"></div>
-    <div class="knoepfe"><button type="button" class="btn leicht" data-schliessen>Close</button></div>
-  </div>
-</div>
-
-<div class="hg" id="dlg-import" role="dialog" aria-modal="true">
-  <div class="dlg gross">
-    <h3>Import closing balances</h3>
-    <p class="lead">Paste a balance list or choose a file. Nothing is stored until the check passes and you confirm.</p>
-    <div class="zweispaltig" style="gap:12px">
-      <div class="feld"><label for="im-text">Cells copied from Excel</label>
-        <textarea class="eingabe" id="im-text" placeholder="Account	Name	Balance	Prior year&#10;1020	Bank account CHF	2'500.00	1'800.00"></textarea></div>
-      <div class="feld"><label>Or a file</label>
-        <button type="button" class="btn leicht" id="im-datei" style="align-self:flex-start">Choose file (xlsx, csv, txt)</button>
-        <div class="klein mut" id="im-dateiname" style="margin-top:6px"></div>
-        <div class="feld" id="im-blatt-box" hidden style="margin-top:10px"><label for="im-blatt">Sheet</label><select class="eingabe" id="im-blatt"></select></div>
-      </div>
-    </div>
-    <div id="im-analyse"></div>
-    <div class="knoepfe">
-      <button type="button" class="btn leicht" data-schliessen>Cancel</button>
-      <button type="button" class="btn" id="im-ok" disabled>Import</button>
-    </div>
-  </div>
-</div>
-
-<div class="hg" id="dlg-anlage" role="dialog" aria-modal="true">
-  <div class="dlg gross">
-    <h3 id="an-titel">New asset</h3>
-    <p class="lead" id="an-lead" style="margin:0 0 12px"></p>
-    <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px">
-      <div class="feld" style="grid-column:span 2"><label for="an-text">Asset</label><input class="eingabe" id="an-text" autocomplete="off" placeholder="Company car"></div>
-      <div class="feld"><label for="an-datum">Acquired on</label><input class="eingabe" id="an-datum" inputmode="numeric" autocomplete="off" placeholder="dd.mm.yyyy"></div>
-      <div class="feld"><label for="an-kosten">Cost</label><input class="eingabe num" id="an-kosten" inputmode="decimal" autocomplete="off" placeholder="0.00"></div>
-      <div class="feld" style="grid-column:span 2"><label for="an-konto">Asset account</label><select class="eingabe" id="an-konto"></select></div>
-      <div class="feld" style="grid-column:span 2"><label for="an-wb">Contra account (accumulated depreciation)</label><select class="eingabe" id="an-wb"></select></div>
-      <div class="feld" style="grid-column:span 2"><label for="an-aufwand">Depreciation account</label><select class="eingabe" id="an-aufwand"></select></div>
-      <div class="feld"><label for="an-start">First month</label><input class="eingabe" type="month" id="an-start"></div>
-      <div class="feld"><label for="an-rhythmus">Booked</label><select class="eingabe" id="an-rhythmus"><option value="monat">monthly, at month end</option><option value="jahr">once a year, at 31.12.</option></select></div>
-      <div class="feld"><label for="an-monate">Useful life, months <span style="font-weight:400;color:var(--text3)">· <button type="button" class="kurzlink" data-an-jahre="3">3 y</button> <button type="button" class="kurzlink" data-an-jahre="4">4 y</button> <button type="button" class="kurzlink" data-an-jahre="5">5 y</button> <button type="button" class="kurzlink" data-an-jahre="10">10 y</button></span></label><input class="eingabe num" type="number" id="an-monate" min="1" max="1200" step="1"></div>
-      <div class="feld"><label for="an-restwert">Residual value</label><input class="eingabe num" id="an-restwert" inputmode="decimal" autocomplete="off" placeholder="0.00"></div>
-      <div class="feld" id="an-ab-box"><label for="an-ab">Register books from</label><input class="eingabe" type="month" id="an-ab"></div>
-      <div class="feld" id="an-vorher-box"><label for="an-vorher">Depreciated before that, by hand</label><input class="eingabe num" id="an-vorher" inputmode="decimal" autocomplete="off" placeholder="0.00"></div>
-    </div>
-    <div id="an-vorschau"></div>
-    <div class="knoepfe">
-      <button type="button" class="btn leicht" id="an-abbruch">Cancel</button>
-      <button type="button" class="btn leicht" id="an-nicht" hidden>Not an asset</button>
-      <button type="button" class="btn" id="an-ok">Register and book</button>
-    </div>
-  </div>
-</div>
-
-<div class="hg" id="dlg-abgang" role="dialog" aria-modal="true">
-  <div class="dlg">
-    <h3 id="ab-titel">Sell or scrap</h3>
-    <p class="lead" style="margin:0 0 12px">Depreciation runs to the month of the disposal; the asset and its accumulated depreciation leave the balance sheet, the difference to the proceeds is the gain or loss. <span id="ab-konten"></span></p>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-      <div class="feld"><label for="ab-datum">Disposal date</label><input class="eingabe" id="ab-datum" inputmode="numeric" autocomplete="off" placeholder="dd.mm.yyyy"></div>
-      <div class="feld"><label for="ab-erloes">Proceeds (0 = scrapped)</label><input class="eingabe num" id="ab-erloes" inputmode="decimal" autocomplete="off" placeholder="0.00"></div>
-      <div class="feld" style="grid-column:span 2"><label for="ab-konto">Proceeds received on</label><select class="eingabe" id="ab-konto"></select></div>
-    </div>
-    <div id="ab-vorschau"></div>
-    <div class="knoepfe"><button type="button" class="btn leicht" id="ab-abbruch">Cancel</button><button type="button" class="btn" id="ab-ok">Book the disposal</button></div>
-  </div>
-</div>
-
-<div class="meldungen" id="meldungen" aria-live="polite"></div>
+<div class="toasts meldungen" id="meldungen" role="status" aria-live="polite"></div>
 <input type="file" id="dateiwahl" accept=".json,application/json" hidden>
-<input type="file" id="importwahl" accept=".xlsx,.csv,.txt,.tsv,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
 <div id="bericht"></div>

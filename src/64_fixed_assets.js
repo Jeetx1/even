@@ -1,477 +1,501 @@
 /* =====================================================================
-   FIXED ASSETS — the register and its depreciation (engine: E.anlage*)
+   OVERVIEW (YEARS), INVESTMENTS, FIXED ASSETS (interface rebuilt on the Design Lab kit, 25.10.2026)
+   The figures are the engines': the statements engine over every month end (yearSeries, worthSeries, investments,
+   buildSeries, investedAt) and the books engine's register (E.anlage*). The charts are drawn on the kit; the rules of
+   the register and of the asset and disposal dialogs are the app's.
    ===================================================================== */
-let saGewaehlt = null;                                   // the asset whose schedule is open
-function saKonten(pred){ return kontenSortiert().filter(k=> pred(k, ix.gm[k.grp])); }
-function saOption(liste, wert, leer){ return (leer ? `<option value="">${esc(leer)}</option>` : "") + liste.map(k=>`<option value="${esc(k.nr)}"${k.nr===wert?" selected":""}>${esc(k.nr)} · ${esc(k.name.slice(0,60))}</option>`).join(""); }
-// the accounts for a gain or loss on disposal exist; created in the depreciation group when missing
+
+/* ---------------------------------------------------------------- the statements engine over every month end (fsVerlauf) */
+function verlaufK(){
+  const t = heute(), vor = t.slice(5, 7) === '01' ? (+t.slice(0, 4) - 1) + '-12' : t.slice(0, 4) + '-' + String(+t.slice(5, 7) - 1).padStart(2, '0');
+  const jahre = Object.keys(E.jahreMitBuchungen(state)).map(Number), letztes = jahre.length ? Math.max.apply(null, jahre) : state.jahr;
+  const bis = String(letztes) < vor.slice(0, 4) ? letztes + '-12' : vor, j = +bis.slice(0, 4);
+  const K = fsDaten(state, ix, E, { jahr: j, alleMonate: true, ohneEroeffnung: true, bis });
+  const per = K.periods(), p = per.indexOf(bis) >= 0 ? bis : per[per.length - 1];
+  const c = per.indexOf((j - 1) + '-12') >= 0 && p !== (j - 1) + '-12' ? (j - 1) + '-12' : per[Math.max(0, per.indexOf(p) - 1)];
+  K.S.activePeriod = p; K.S.comparePeriod = c;
+  const fmt = K.fmt; K.fmt = (v, f) => fmt(v, f).replace(/'/g, '’');
+  return K;
+}
+/* what the reader sets on Investments is a file setting (state.auswertung), as in the app: one change with undo */
+let INV_JAHRE = null;                                // the horizon while the slider moves, before it is let go
+function invMerken(K){
+  const neu = { investments: JSON.parse(JSON.stringify(K.S.investments || [])), forecast: Object.assign({}, K.S.forecast), invView: K.S.invView };
+  INV_JAHRE = null;
+  return aendere('Investment settings changed', () => { state.auswertung = Object.assign({}, state.auswertung || {}, neu); });
+}
+const DONUT = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(i => 'var(--ev-d' + i + ')');
+/* the kit's donut: a ring of segments, the total in the middle, the list beside it; hovering one lights its pair */
+function donut(box, teile, mitte, leer){
+  box.innerHTML = '';
+  if (!teile.length){ box.appendChild(h('p', { class: 'note' }, [leer])); return; }
+  const total = teile.reduce((s, x) => s + x.wert, 0) || 1, r = 40, C = 2 * Math.PI * r, gap = teile.length > 1 ? 1.2 : 0;
+  /* the ring turns slowly (a CSS animation on its own group, paused under the pointer, off with reduced motion) */
+  let off = 0, svg = '<svg viewBox="0 0 100 100" aria-hidden="true"><g class="ev-spin"><g transform="rotate(-90 50 50)"><circle cx="50" cy="50" r="40" fill="none" stroke="var(--chart-grid)" stroke-width="14"/>';
+  teile.forEach((x, i) => { const len = x.wert / total * C;
+    svg += '<circle class="seg" data-i="' + i + '" cx="50" cy="50" r="40" stroke="' + DONUT[i % DONUT.length] + '" stroke-width="14" stroke-dasharray="' + Math.max(0, len - gap).toFixed(2) + ' ' + (C - len + gap).toFixed(2) + '" stroke-dashoffset="' + (-off).toFixed(2) + '"/>';
+    off += len; });
+  const ring = h('div', { class: 'donut__ring', html: svg + '</g></g></svg>' }), list = h('div', { class: 'donut__list' });
+  ring.appendChild(h('div', { class: 'donut__mid' }, [h('b', {}, [mitte.v]), h('small', {}, [mitte.l])]));
+  teile.forEach((x, i) => list.appendChild(h('div', { 'data-i': i, title: x.tip || null }, [h('i', { style: { background: DONUT[i % DONUT.length] } }), h('span', {}, [x.label]), h('b', {}, [x.zahl])])));
+  const segs = $$('.seg', ring), rows = $$('div', list);
+  const hell = i => { ring.classList.toggle('is-hover', i !== null); segs.forEach(s => s.classList.toggle('on', s.dataset.i === String(i))); rows.forEach(z => z.classList.toggle('on', z.dataset.i === String(i))); };
+  segs.concat(rows).forEach(el => { el.addEventListener('pointerenter', () => hell(el.dataset.i)); el.addEventListener('pointerleave', () => hell(null)); });
+  box.appendChild(h('div', { class: 'donut ev-donut' }, [ring, list]));
+}
+/* the axis of a chart: four steps from a round number, labels in thousands */
+function achse(lo, hi){
+  const roh = (hi - lo) / 4 || 1, p = Math.pow(10, Math.floor(Math.log10(roh))), s = [1, 2, 2.5, 5, 10].map(x => x * p).find(x => x >= roh) || roh;
+  const a = Math.floor(lo / s) * s, b = Math.ceil(hi / s) * s, out = []; for (let v = a; v <= b + s / 2; v += s) out.push(v);
+  return { lo: a, hi: b, ticks: out };
+}
+const kTxt = v => Math.abs(v) >= 1e6 ? tsd(v / 1e6, 1) + 'm' : Math.abs(v) >= 1000 ? tsd(v / 1000, Math.abs(v) < 1e4 ? 1 : 0) + 'k' : tsd(v);
+/* the drawing has the size of its box, so a point in the svg is a pixel on screen (the hover relies on it) */
+function svgKasten(box, H){
+  const W = Math.max(280, Math.round(box.getBoundingClientRect().width || 600)); H = Math.round(box.getBoundingClientRect().height) || H || 240;
+  return { W, H, svg: h('svg', { viewBox: '0 0 ' + W + ' ' + H, role: 'img' }) };
+}
+function gitter(svg, A, y, ml, W, mr){
+  A.ticks.forEach(v => { svg.appendChild(h('line', { class: 'gridline', x1: ml, x2: W - mr, y1: y(v).toFixed(1), y2: y(v).toFixed(1) }));
+    svg.appendChild(h('text', { class: 'axis', x: ml - 8, y: (y(v) + 4).toFixed(1), 'text-anchor': 'end' }, [kTxt(v)])); });
+  if (A.lo < 0) svg.appendChild(h('line', { class: 'zero', x1: ml, x2: W - mr, y1: y(0).toFixed(1), y2: y(0).toFixed(1) }));
+}
+
+/* ================================================================ OVERVIEW (YEARS) */
+function renderUeberJahreSeite(animate){
+  const K = verlaufK(), p = K.S.activePeriod, G = K.GROUPS, ys = K.yearSeries(), ws = K.worthSeries();
+  $('#eyebrow').textContent = 'Every year of this file, up to ' + K.periodLabel(p) + ' (' + dateLong(K.rep(p).asOf) + ') · ' + K.CUR();
+  const erst = ws[0], letzt = ws[ws.length - 1] || { worth: 0, assets: 0 }, jetzt = ys[ys.length - 1];
+  const fig = (l, v, sub, d, besser) => h('div', { class: 'ev-fig' }, [h('div', { class: 'kpi__label' }, [h('span', {}, [l])]), h('div', { class: 'ev-fig__v' }, [v]),
+    h('small', {}, [d !== null && d !== undefined && !K.nil(d) ? h('span', { class: 'delta ' + (besser ? 'delta--up' : 'delta--flat') }, [(d > 0 ? '+' : '−') + K.fmt(Math.abs(d))]) : null, sub])]);
+  const box = $('#oj-figs'); box.innerHTML = '';
+  const dW = erst ? K.r2(letzt.worth - erst.worth) : 0;
+  box.appendChild(fig('Net worth', K.fmt(letzt.worth, true), erst ? ' since ' + dateLong(erst.t) : '', dW, dW > 0));
+  box.appendChild(fig('Total assets', K.fmt(letzt.assets, true), 'at ' + dateLong(K.rep(p).asOf)));
+  box.appendChild(fig('Cash and investments', K.fmt(K.nodeVal(G.FONDS, p) + K.investedAt(p), true), 'invested ' + K.fmt(K.investedAt(p), true)));
+  box.appendChild(fig('Savings rate ' + (jetzt ? jetzt.y : ''), jetzt && jetzt.income ? (jetzt.result / jetzt.income * 100).toFixed(1) + '%' : '–', jetzt && jetzt.part ? jetzt.months + ' months' : 'full year'));
+  ojBalken(ys, animate); ojLinie(ws, animate);
+  /* the investments ticked under Statement settings, by value */
+  const summe = accs => K.r2(accs.reduce((s, a) => s + K.accVal(p, a), 0));
+  const teile = K.investments().filter(i => i.include).map(i => ({ label: i.label, wert: K.r2(summe(i.pay) + summe(i.adj)), bezahlt: summe(i.pay) })).filter(x => x.wert > .005).sort((a, b) => b.wert - a.wert);
+  const total = K.r2(teile.reduce((s, x) => s + x.wert, 0));
+  $('#oj-donut-sub').textContent = 'At ' + dateLong(K.rep(p).asOf) + ', ' + K.CUR();
+  donut($('#oj-donut'), teile.map(x => ({ label: x.label, wert: x.wert, zahl: K.fmt(x.wert), tip: 'Paid in ' + K.fmt(x.bezahlt) + ' · ' + (x.wert / total * 100).toFixed(1) + '%' })),
+    { v: kTxt(total), l: 'invested' }, 'No investment ticked yet. Tick them under Setup, Statement settings.');
+}
+/* income and expenses as bars per year, the result as a line; a year still running is hatched */
+function ojBalken(ys, animate){
+  const box = $('#oj-balken'), { W, H, svg } = svgKasten(box, 260), ml = 48, mr = 8, mt = 10, mb = 26, iw = W - ml - mr, ih = H - mt - mb;
+  if (!ys.length){ box.innerHTML = ''; return; }
+  const A = achse(Math.min(0, ...ys.map(d => d.result)), Math.max(1, ...ys.map(d => Math.max(d.income, d.expense)))), y = v => mt + (A.hi - v) / (A.hi - A.lo) * ih;
+  svg.appendChild(h('defs', {}, [])).innerHTML = '<pattern id="ojHatch" width="6" height="6" patternTransform="rotate(45)" patternUnits="userSpaceOnUse"><line x1="0" y1="0" x2="0" y2="6" stroke="var(--ev-hatch)" stroke-width="2"/></pattern>';
+  gitter(svg, A, y, ml, W, mr);
+  const band = iw / ys.length, bw = Math.min(44, band * .28), pts = [];
+  ys.forEach((d, i) => {
+    const cx = ml + band * (i + .5);
+    [['inc', d.income, -bw - 3], ['exp', d.expense, 3]].forEach(([c, v, dx], k) => {
+      const top = y(Math.max(0, v)), hh = Math.max(1, Math.abs(y(0) - y(v))), att = { x: (cx + dx).toFixed(1), y: top.toFixed(1), width: bw.toFixed(1), height: hh.toFixed(1), rx: Math.min(5, bw / 3) };
+      svg.appendChild(h('rect', Object.assign({ class: 'bar ' + c, style: animate && !REDUCED ? { animationDelay: (i * 80 + k * 40) + 'ms' } : { animation: 'none' } }, att), [h('title', {}, [d.label + ': ' + (c === 'inc' ? 'income ' : 'expenses ') + tsd(v, 2)])]));
+      if (d.part) svg.appendChild(h('rect', Object.assign({ fill: 'url(#ojHatch)', 'pointer-events': 'none' }, att)));
+    });
+    svg.appendChild(h('text', { class: 'axis', x: cx.toFixed(1), y: H - 6, 'text-anchor': 'middle' }, [d.y + (d.part ? ' · ' + d.months + 'm' : '')]));
+    pts.push([cx, y(d.result), d]);
+  });
+  if (pts.length > 1) svg.appendChild(h('path', { class: 'series series--dash res' + (animate && !REDUCED ? ' reveal' : ''), d: smooth(pts.map(q => [q[0], q[1]])) }));
+  pts.forEach(q => svg.appendChild(h('circle', { class: 'ev-dot', cx: q[0].toFixed(1), cy: q[1].toFixed(1), r: 4 })));
+  box.innerHTML = ''; box.appendChild(svg);
+  chartHover(box, svg, pts.map(q => { const d = q[2];
+    return { x: q[0], y: q[1], titel: d.y + (d.part ? ' · ' + d.months + ' months' : ''),
+      zeilen: [['Income', tsd(d.income)], ['Expenses', tsd(d.expense)], ['Result', tsd(d.result) + (d.income ? ' · ' + (d.result / d.income * 100).toFixed(1) + '%' : '')]] }; }), mt, H - mb);
+}
+/* net worth at every month end, total assets dashed behind it */
+function ojLinie(ws, animate){
+  const box = $('#oj-linie'), { W, H, svg } = svgKasten(box, 240), ml = 48, mr = 10, mt = 10, mb = 24, iw = W - ml - mr, ih = H - mt - mb;
+  if (ws.length < 2){ box.innerHTML = ''; box.appendChild(h('p', { class: 'note' }, ['One report so far: the line starts with the second month.'])); return; }
+  const t = s => Date.parse(s + 'T00:00:00Z'), t0 = t(ws[0].t), t1 = t(ws[ws.length - 1].t), x = d => ml + (t(d.t) - t0) / Math.max(1, t1 - t0) * iw;
+  const A = achse(Math.min(0, ...ws.map(d => d.worth)), Math.max(1, ...ws.map(d => Math.max(d.assets, d.worth)))), y = v => mt + (A.hi - v) / (A.hi - A.lo) * ih;
+  gitter(svg, A, y, ml, W, mr);
+  const pfad = k => ws.map((d, i) => (i ? 'L' : 'M') + x(d).toFixed(1) + ',' + y(d[k]).toFixed(1)).join('');
+  svg.appendChild(h('path', { class: 'ev-area', d: pfad('worth') + 'L' + x(ws[ws.length - 1]).toFixed(1) + ',' + y(Math.max(0, A.lo)).toFixed(1) + 'L' + x(ws[0]).toFixed(1) + ',' + y(Math.max(0, A.lo)).toFixed(1) + 'Z' }));
+  svg.appendChild(h('path', { class: 'series series--dash ev-assets-line', d: pfad('assets') }));
+  svg.appendChild(h('path', { class: 'series ev-worth-line' + (animate && !REDUCED ? ' reveal' : ''), d: pfad('worth') }));
+  const n = Math.min(6, ws.length); for (let k = 0; k < n; k++){ const d = ws[Math.round(k * (ws.length - 1) / Math.max(1, n - 1))];
+    svg.appendChild(h('text', { class: 'axis', x: x(d).toFixed(1), y: H - 5, 'text-anchor': k === 0 ? 'start' : k === n - 1 ? 'end' : 'middle' }, [MONATE[+d.t.slice(5, 7) - 1].slice(0, 3) + ' ' + d.t.slice(2, 4)])); }
+  ws.forEach((d, i) => { if (i === ws.length - 1 || ws.length <= 24) svg.appendChild(h('circle', { class: 'ev-dot ev-dot--worth', cx: x(d).toFixed(1), cy: y(d.worth).toFixed(1), r: i === ws.length - 1 ? 4 : 2.6 })); });
+  box.innerHTML = ''; box.appendChild(svg);
+  chartHover(box, svg, ws.map((d, i) => { const vor = ws[i - 1], dd = vor ? E.r2(d.worth - vor.worth) : null;
+    return { x: x(d), y: y(d.worth), titel: dateLong(d.t), zeilen: [['Net worth', tsd(d.worth)]].concat(vor ? [['vs month before', (dd >= 0 ? '+' : '−') + tsd(Math.abs(dd))]] : []) }; }), mt, H - mb);
+  const g = K_letzt(ws); $('#oj-worth-chip').textContent = g;
+}
+const K_letzt = ws => { const d = E.r2(ws[ws.length - 1].worth - ws[0].worth); return (d >= 0 ? '+' : '−') + tsd(Math.abs(d), 2) + ' since ' + dateLong(ws[0].t); };
+
+/* ================================================================ INVESTMENTS */
+let INV_K = null;
+function renderAnlagenSeite(animate){
+  const K = INV_K = verlaufK();
+  if (INV_JAHRE !== null) K.S.forecast.years = INV_JAHRE;
+  const p = K.S.activePeriod, all = K.investments(), jahre = K.S.forecast.years;
+  const sel = $('#inv-view'), keep = K.S.invView || 'all';
+  sel.innerHTML = ''; sel.appendChild(h('option', { value: 'all' }, ['All investments combined']));
+  all.filter(i => i.include).forEach(i => sel.appendChild(h('option', { value: i.id }, [i.label])));
+  sel.value = keep; if (sel.value !== keep) sel.value = 'all'; K.S.invView = sel.value;
+  const inc = all.filter(i => i.include), set = K.S.invView === 'all' ? inc : inc.filter(i => i.id === K.S.invView);
+  const sum = (q, accs) => K.r2(accs.reduce((s, a) => s + K.accVal(q, a), 0));
+  const pay = K.r2(set.reduce((s, i) => s + sum(p, i.pay), 0)), adj = K.r2(set.reduce((s, i) => s + sum(p, i.adj), 0)), val = K.r2(pay + adj);
+  const pts = K.buildSeries(set, jahre), end = pts[pts.length - 1] || { pay, val, t: K.rep(p).asOf };
+  $('#eyebrow').textContent = 'As at ' + dateLong(K.rep(p).asOf) + ' · ' + K.CUR() + ' · rent deposits excluded';
+  const box = $('#inv-figs'); box.innerHTML = '';
+  const fig = (l, v, sub, ton) => box.appendChild(h('div', { class: 'ev-fig' }, [h('div', { class: 'kpi__label' }, [h('span', {}, [l])]), h('div', { class: 'ev-fig__v' }, [v]),
+    h('small', {}, [ton ? h('span', { class: 'delta ' + ton }, [sub]) : sub])]));
+  fig('Paid in', K.fmt(pay, true), set.length + ' position' + (set.length === 1 ? '' : 's'));
+  fig('Value adjustment', (adj >= 0 ? '+' : '−') + K.fmt(Math.abs(adj), true), pay ? (adj >= 0 ? '+' : '−') + Math.abs(adj / pay * 100).toFixed(1) + '% on paid in' : '–', adj > 0.005 ? 'delta--up' : 'delta--flat');
+  fig('Market value', K.fmt(val, true), 'at ' + dateLong(K.rep(p).asOf));
+  fig('Projected value', K.fmt(end.val, true), jahre ? 'in ' + jahre + ' years · paid in ' + kTxt(end.pay) : 'no forecast');
+  $('#inv-horizont').textContent = jahre === 0 ? 'actuals only' : jahre + ' year' + (jahre === 1 ? '' : 's') + ' → ' + end.t.slice(0, 4);
+  const rng = $('#inv-jahre'); rng.value = jahre; rng.style.setProperty('--fill', (jahre / 30 * 100) + '%');
+  $('#inv-jahre-l').textContent = jahre + (jahre === 1 ? ' year' : ' years'); $('#inv-bis').textContent = jahre ? 'projected to ' + dateLong(end.t) : 'actuals only';
+  invChart(pts, animate);
+  invTabelle(K, inc);
+}
+/* paid in as a filled area, the value as a line; the forecast continues both, dashed, on a hatched band */
+function invChart(pts, animate){
+  const box = $('#inv-chart'), { W, H, svg } = svgKasten(box, 260), ml = 52, mr = 10, mt = 12, mb = 24, iw = W - ml - mr, ih = H - mt - mb;
+  box.innerHTML = '';
+  if (pts.length < 2){ box.appendChild(h('p', { class: 'note' }, ['Nothing invested yet in this view.'])); return; }
+  const t = s => Date.parse(s + 'T00:00:00Z'), t0 = t(pts[0].t), t1 = t(pts[pts.length - 1].t), x = d => ml + (t(d.t) - t0) / Math.max(1, t1 - t0) * iw;
+  const A = achse(Math.min(0, ...pts.map(d => Math.min(d.pay, d.val))), Math.max(1, ...pts.map(d => Math.max(d.pay, d.val)))), y = v => mt + (A.hi - v) / (A.hi - A.lo) * ih;
+  svg.appendChild(h('defs', {})).innerHTML = '<pattern id="invHatch" width="7" height="7" patternTransform="rotate(45)" patternUnits="userSpaceOnUse"><line x1="0" y1="0" x2="0" y2="7" stroke="var(--ev-hatch)" stroke-width="2.4"/></pattern>';
+  const ist = pts.filter(d => !d.fc), fc = pts.filter(d => d.fc), heuteP = ist[ist.length - 1];
+  if (fc.length) svg.appendChild(h('rect', { x: x(heuteP).toFixed(1), y: mt, width: (W - mr - x(heuteP)).toFixed(1), height: ih, fill: 'url(#invHatch)' }));
+  gitter(svg, A, y, ml, W, mr);
+  const linie = (liste, k) => liste.map((d, i) => (i ? 'L' : 'M') + x(d).toFixed(1) + ',' + y(d[k]).toFixed(1)).join('');
+  const flaeche = (liste, k) => linie(liste, k) + 'L' + x(liste[liste.length - 1]).toFixed(1) + ',' + y(Math.max(0, A.lo)).toFixed(1) + 'L' + x(liste[0]).toFixed(1) + ',' + y(Math.max(0, A.lo)).toFixed(1) + 'Z';
+  const weiter = fc.length ? [heuteP].concat(fc) : [];
+  svg.appendChild(h('path', { class: 'ev-pay-area', d: flaeche(ist, 'pay') }));
+  if (weiter.length) svg.appendChild(h('path', { class: 'ev-pay-area is-fc', d: flaeche(weiter, 'pay') }));
+  svg.appendChild(h('path', { class: 'series ev-pay-line', d: linie(ist, 'pay') }));
+  svg.appendChild(h('path', { class: 'series ev-val-line' + (animate && !REDUCED ? ' reveal' : ''), d: linie(ist, 'val') }));
+  if (weiter.length){ svg.appendChild(h('path', { class: 'series series--dash ev-pay-line', d: linie(weiter, 'pay') })); svg.appendChild(h('path', { class: 'series series--dash ev-val-line', d: linie(weiter, 'val') })); }
+  svg.appendChild(h('line', { class: 'ev-today', x1: x(heuteP).toFixed(1), x2: x(heuteP).toFixed(1), y1: mt, y2: mt + ih }));
+  svg.appendChild(h('circle', { class: 'ev-dot ev-dot--val', cx: x(heuteP).toFixed(1), cy: y(heuteP.val).toFixed(1), r: 4 }, [h('title', {}, [dateLong(heuteP.t) + ': value ' + tsd(heuteP.val, 2) + ', paid in ' + tsd(heuteP.pay, 2)])]));
+  const ende = pts[pts.length - 1];
+  if (fc.length) svg.appendChild(h('circle', { class: 'ev-dot ev-dot--val', cx: x(ende).toFixed(1), cy: y(ende.val).toFixed(1), r: 3.5 }, [h('title', {}, [dateLong(ende.t) + ': projected ' + tsd(ende.val, 2) + ', paid in ' + tsd(ende.pay, 2)])]));
+  const jahreAchse = []; const j0 = +pts[0].t.slice(0, 4), j1 = +ende.t.slice(0, 4), schritt = Math.max(1, Math.ceil((j1 - j0) / 6));
+  for (let j = j0; j <= j1; j += schritt) jahreAchse.push(j);
+  jahreAchse.forEach(j => { const xx = x({ t: j + '-01-01' }); if (xx >= ml && xx <= W - mr) svg.appendChild(h('text', { class: 'axis', x: xx.toFixed(1), y: H - 5, 'text-anchor': 'middle' }, [String(j)])); });
+  box.appendChild(svg);
+  chartHover(box, svg, pts.map(d => ({ x: x(d), y: y(d.val), titel: dateLong(d.t) + (d.fc ? ' · forecast' : ''),
+    zeilen: [['Value', tsd(d.val)], ['Paid in', tsd(d.pay)]] })), mt, mt + ih);
+}
+/* the assumptions: monthly pay-in and expected return per investment drive the forecast */
+function invTabelle(K, inc){
+  const p = K.S.activePeriod, alle = K.investments(), sum = (q, accs) => K.r2(accs.reduce((s, a) => s + K.accVal(q, a), 0)), tb = h('tbody');
+  inc.forEach(i => {
+    const n = alle.indexOf(i), pay = sum(p, i.pay), adj = sum(p, i.adj), val = K.r2(pay + adj), ret = pay ? adj / pay * 100 : 0;
+    const one = K.buildSeries([i], K.S.forecast.years), proj = one.length ? one[one.length - 1].val : val;
+    const feld = (f, step, w) => h('input', { class: 'input num ev-cell', type: 'number', step, min: f === 'monthly' ? '0' : null, value: +i[f] || 0, 'aria-label': (f === 'monthly' ? 'Monthly pay-in, ' : 'Return p.a., ') + i.label, style: { width: w },
+      onchange: e => { alle[n][f] = parseFloat(e.target.value) || 0; invMerken(K); renderAnlagenSeite(false); } });
+    tb.appendChild(h('tr', {}, [h('td', { class: 'wrap-ok' }, [h('b', {}, [i.label]), h('small', { class: 'ev-inv-acc' }, [i.pay.join(', ') + (i.adj.length ? ' ↔ ' + i.adj.join(', ') : ' · no valuation account')])]),
+      h('td', { class: 'num' }, [K.fmt(pay)]), h('td', { class: 'num' }, [K.nil(adj) ? '–' : (adj > 0 ? '+' : '−') + K.fmt(Math.abs(adj))]), h('td', { class: 'num' }, [h('b', {}, [K.fmt(val)])]),
+      h('td', { class: 'num' }, [K.nil(adj) ? '–' : (ret >= 0 ? '+' : '−') + Math.abs(ret).toFixed(1) + '%']),
+      h('td', { class: 'num' }, [feld('monthly', '10', '96px')]), h('td', { class: 'num' }, [feld('ret', '0.25', '80px')]), h('td', { class: 'num' }, [K.fmt(proj)])]));
+  });
+  const box = $('#inv-tabelle'); box.innerHTML = '';
+  if (!inc.length){ box.appendChild(h('div', { class: 'empty' }, [h('h3', { class: 'empty__title' }, ['No investment ticked yet']), h('p', { class: 'empty__text' }, ['Tick them under Setup, Statement settings.'])])); return; }
+  box.appendChild(h('div', { class: 'ev-scroll' }, [h('table', { class: 'table ev-inv' }, [h('thead', {}, [h('tr', {}, ['Investment', 'Paid in', 'Value adj.', 'Value', 'Return', 'Monthly pay-in', 'Return p.a. %', 'Projected']
+    .map((t, k) => h('th', { class: k ? 'num' : '' }, [h('span', { class: 'th-sort' }, [t])])))]), tb])]));
+}
+
+/* ================================================================ FIXED ASSETS (rules of 64_fixed_assets.js) */
+let saGewaehlt = null;
+const saKonten = pred => kontenSortiert().filter(k => pred(k, ix.gm[k.grp]));
+const fz2 = v => tsd(v, 2);
+/* the accounts for a gain or loss on disposal; created in the depreciation group when missing */
 function saAbgangKonten(){
-  const ein = state.einstellungen || {}, gewinn = ein.abgangGewinn || "6815", verlust = ein.abgangVerlust || "6810";
-  const fehlt = [gewinn, verlust].filter(nr=> !ix.km[nr]);
-  if(!fehlt.length) return {gewinn, verlust, neu:[]};
-  const grp = state.gruppen.find(g=> E.istER(g) && /depreciation|abschreib|amortis/i.test(g.t)) || state.gruppen.find(g=> E.istER(g) && g.vz !== -1);
-  const neu = fehlt.map(nr=> [nr, nr === gewinn ? "Gewinn aus Abgang Anlagevermögen" : "Verlust aus Abgang Anlagevermögen", grp ? grp.c : "I11", null, null]);
-  return {gewinn, verlust, neu};
+  const ein = state.einstellungen || {}, gewinn = ein.abgangGewinn || '6815', verlust = ein.abgangVerlust || '6810';
+  const fehlt = [gewinn, verlust].filter(nr => !ix.km[nr]);
+  if (!fehlt.length) return { gewinn, verlust, neu: [] };
+  const grp = state.gruppen.find(g => E.istER(g) && /depreciation|abschreib|amortis/i.test(g.t)) || state.gruppen.find(g => E.istER(g) && g.vz !== -1);
+  return { gewinn, verlust, neu: fehlt.map(nr => [nr, nr === gewinn ? 'Gain on disposal of fixed assets' : 'Loss on disposal of fixed assets', grp ? grp.c : 'I11', null, null]) };
 }
-function saBis(){ const p = periodeAktiv(); return p.bis; }
-/* ---------- the page ---------- */
-function renderSachanlagen(){
-  const bis = state.jahr+"-12-31", heuteBis = heute() < bis && heute().slice(0,4) === String(state.jahr) ? E.monatsende(heute().slice(0,7)) : bis;
-  const ue = E.anlagenUebersicht(state, ix, heuteBis), reihe = E.anlagenJahresreihe(state, ix, state.jahr);
-  setzeUntertitel("Register at "+fd(heuteBis)+", schedule for "+state.jahr);
-  const aktiv = ue.anlagen.filter(x=> !x.abgegangen && x.kosten > 0);
-  const jahresAufwand = E.r2(reihe.reduce((s, r)=> s + r.aufwand, 0));
-  const gesamt = Math.max(ue.total.buchwert, 1);
-  const saTeile = aktiv.filter(x=> x.buchwert > .005).sort((a,b)=> b.buchwert - a.buchwert), saTotal = E.r2(saTeile.reduce((s2, x)=> s2 + x.buchwert, 0));
-  const saBild = saTeile.length ? `<div class="donut"><svg id="saDonut" viewBox="0 0 220 220" role="img" aria-label="Net book value by asset">${donutRing(saTeile.map(x=>({wert:x.buchwert,
-      tip:`<b>${esc(x.anlage.text)}</b>`+tipZeile("Cost", fz(x.kosten))+tipZeile("Depreciated", fz(x.gebucht))+tipZeile("Net book value", fz(x.buchwert))+tipZeile("Monthly charge", fz(x.monatlich))})), "Net book value", fk(saTotal))}</svg>
-    <div class="donut-liste" id="saDonutListe">${saTeile.map((x, i)=>`<div class="z" data-i="${i}"><i style="background:${DONUT_FARBEN[i % DONUT_FARBEN.length]}"></i><span class="t">${esc(x.anlage.text)}</span>
-      <span class="num">${fz(x.buchwert)}</span><span class="num mut">${(x.buchwert/saTotal*100).toFixed(1)}%</span></div>`).join("")}</div></div>`
-    : `<div class="mut klein" style="padding:20px 0">No asset in the register yet.</div>`;
-  $("#sa-held").innerHTML = `<div class="held">
-    <div><div class="bb-kopf"><span>Net book value by asset</span><span>${fk(ue.total.buchwert)}</span></div>${saBild}</div>
-    <div>
-      <div class="kennwert"><div class="l">Net book value at ${fd(heuteBis)}</div><div class="v">${fz(ue.total.buchwert)}</div><div class="linie"></div></div>
-      <div class="kenngitter">
-        <div><div class="l">Cost</div><div class="v">${fz(ue.total.kosten)}</div></div>
-        <div><div class="l">Accumulated depreciation</div><div class="v">${fz(ue.total.gebucht)}</div></div>
-        <div><div class="l">Depreciation ${state.jahr} (schedule)</div><div class="v">${fz(jahresAufwand)}</div></div>
-        <div><div class="l">Residual values</div><div class="v">${fz(aktiv.reduce((s, x)=> s + x.anlage.restwert, 0))}</div></div>
-      </div>
-    </div></div>`;
-  donutHell("saDonut", "saDonutListe"); donutEin($("#saDonut"));
-  const naechstes = E.anlagenJahresreihe(state, ix, state.jahr+1).reduce((s, r)=> s + r.aufwand, 0);
-  const fort = istGeschlossen(state.jahr) ? {bookings:[], anlagen:[]} : E.anlagenFortfuehren(state, ix, state.jahr);
-  $("#sa-leiste").innerHTML = [
-    ["Assets in use", String(aktiv.length)], ["Monthly charge", fz(aktiv.reduce((s, x)=> s + x.monatlich, 0))],
-    ["Depreciation "+(state.jahr+1), fz(naechstes)], ["Not booked yet in "+state.jahr, fz(fort.anlagen.reduce((s, a)=> s + a.betrag, 0))],
-    ["Schedule vs. booked", Math.abs(ue.total.fehlt) < .005 ? "in line" : fz(ue.total.fehlt)]
-  ].map(x=>`<div><div class="l">${x[0]}</div><div class="v ${String(x[1]).charAt(0)==="\u2212"?"neg":""}">${x[1]}</div></div>`).join("");
-  $("#sa-dia1").innerHTML = diaSigniert(reihe, "buchwert", r=>`<b>End of ${r.name} ${state.jahr}</b>`+tipZeile("Net book value", fz(r.buchwert))+tipZeile("Charge in month", fz(r.aufwand)));
-  $("#sa-dia2").innerHTML = diaSigniert(reihe, "aufwand", r=>`<b>${r.name} ${state.jahr}</b>`+tipZeile("Depreciation", fz(r.aufwand)));
-  // the offer to book this year's depreciation
-  $("#sa-fort").innerHTML = fort.anlagen.length ? `<div class="fuss info" style="margin:0 0 12px;flex-wrap:wrap"><span>${fort.anlagen.length} asset${fort.anlagen.length>1?"s":""} with depreciation not booked yet in ${state.jahr}: ${fort.bookings.length} booking${fort.bookings.length>1?"s":""}, ${fz(fort.anlagen.reduce((s,a)=>s+a.betrag,0))}.</span>
-    <button type="button" class="btn mini" id="sa-fort-ok" style="margin-left:auto">Book them</button></div>` : "";
-  const fb = $("#sa-fort-ok"); if(fb) fb.onclick = ()=> fortfuehrenDialog({plaene:[], bookings:[]}, fort);
-  // the register
-  const liste = ue.anlagen.slice().sort((a, b)=> (a.abgegangen - b.abgegangen) || (a.anlage.datum < b.anlage.datum ? -1 : 1));
-  $("#sa-tabelle").innerHTML = liste.length ? `<table class="band"><thead><tr><th>Asset</th><th>Account</th><th>Acquired</th><th class="num">Cost</th><th class="num">Residual</th><th>Life</th><th class="num">Depreciated</th><th class="num">Net book value</th><th class="num">Per month</th><th>Until</th><th>Status</th><th></th></tr></thead><tbody>`+
-    liste.map(x=>{ const a = x.anlage, zu = istGeschlossen(state.jahr);
-      const status = a.abgang ? `<span class="chip">${a.abgang.erloes > 0 ? "sold" : "scrapped"} ${fd(a.abgang.datum)}</span>` : (x.vorStart ? `<span class="chip">from ${a.start}</span>` : (Math.abs(x.fehlt) < .005 ? `<span class="chip gruen">in line</span>` : `<span class="chip amber">${x.fehlt > 0 ? "to book "+fz(x.fehlt) : "over by "+fz(-x.fehlt)}</span>`));
-      return `<tr class="klickbar${saGewaehlt === a.id ? " an" : ""}" data-sa="${esc(a.id)}" title="Show the schedule"><td><b>${esc(a.text)}</b></td><td class="klein">${esc(a.konto)}${a.wb ? " / "+esc(a.wb) : ""} → ${esc(a.aufwand)}</td><td>${fd(a.datum)}</td>
-        <td class="num">${f(a.kosten)}</td><td class="num">${f(a.restwert)}</td><td>${a.monate} m${a.rhythmus === "jahr" ? " · yearly" : ""}</td><td class="num">${f(x.abgegangen ? 0 : x.gebucht)}</td><td class="num"><b>${f(x.buchwert)}</b></td><td class="num">${x.abgegangen ? "–" : f(x.monatlich)}</td><td>${fd(x.ende+"-01").slice(3)}</td><td>${status}</td>
-        <td style="white-space:nowrap">${zu ? "" : `<button type="button" class="btn leicht mini" data-sa-edit="${esc(a.id)}">Edit</button> ${a.abgang ? "" : `<button type="button" class="btn leicht mini" data-sa-abgang="${esc(a.id)}">Sell / scrap</button>`} <button type="button" class="weg" data-sa-del="${esc(a.id)}" aria-label="Remove">×</button>`}</td></tr>`; }).join("")+
-    `<tr><td><b>Total</b></td><td></td><td></td><td class="num"><b>${f(ue.total.kosten)}</b></td><td></td><td></td><td class="num"><b>${f(ue.total.gebucht)}</b></td><td class="num"><b>${f(ue.total.buchwert)}</b></td><td colspan="4"></td></tr></tbody></table>`
-    : `<p class="mut klein">No asset yet. Book a purchase onto an asset account and the register asks for the details, or register an asset that is already on the books.</p>`;
-  $$("#sa-tabelle [data-sa]").forEach(tr=> tr.onclick = ()=>{ saGewaehlt = tr.dataset.sa; render(); });
-  $$("#sa-tabelle [data-sa-edit]").forEach(b=> b.onclick = e=>{ e.stopPropagation(); anlageDialog({id:b.dataset.saEdit}); });
-  $$("#sa-tabelle [data-sa-abgang]").forEach(b=> b.onclick = e=>{ e.stopPropagation(); abgangDialog(b.dataset.saAbgang); });
-  $$("#sa-tabelle [data-sa-del]").forEach(b=> b.onclick = e=>{ e.stopPropagation(); anlageEntfernen(b.dataset.saDel); });
-  // the schedule of the chosen asset
-  const gew = liste.find(x=> x.anlage.id === saGewaehlt) || liste.find(x=> !x.abgegangen) || liste[0];
-  if(!gew){ $("#sa-plan-titel").textContent = ""; $("#sa-plan").innerHTML = ""; return; }
+function renderSachanlagenSeite(animate){
+  const J = state.jahr, bis = J + '-12-31', jetzt = heute() < bis && heute().slice(0, 4) === String(J) ? E.monatsende(heute().slice(0, 7)) : bis;
+  const ue = E.anlagenUebersicht(state, ix, jetzt), reihe = E.anlagenJahresreihe(state, ix, J);
+  $('#eyebrow').textContent = 'Register at ' + dateLong(jetzt) + ' · schedule for ' + J + ' · ' + state.waehrung;
+  const aktiv = ue.anlagen.filter(x => !x.abgegangen && x.kosten > 0), jahresAufwand = E.r2(reihe.reduce((s, r) => s + r.aufwand, 0));
+  const naechstes = E.r2(E.anlagenJahresreihe(state, ix, J + 1).reduce((s, r) => s + r.aufwand, 0));
+  const fort = istGeschlossen(J) ? { bookings: [], anlagen: [] } : E.anlagenFortfuehren(state, ix, J);
+  /* the head: the donut of net book values beside the key figures */
+  const teile = aktiv.filter(x => x.buchwert > .005).sort((a, b) => b.buchwert - a.buchwert);
+  donut($('#sa-donut'), teile.map(x => ({ label: x.anlage.text, wert: x.buchwert, zahl: fz2(x.buchwert), tip: 'Cost ' + fz2(x.kosten) + ' · depreciated ' + fz2(x.gebucht) + ' · per month ' + fz2(x.monatlich) })),
+    { v: kTxt(ue.total.buchwert), l: 'net book value' }, 'No asset in the register yet.');
+  const figs = $('#sa-figs'); figs.innerHTML = '';
+  [['Net book value', fz2(ue.total.buchwert), 'at ' + dateLong(jetzt)], ['Cost', fz2(ue.total.kosten), aktiv.length + ' asset' + (aktiv.length === 1 ? '' : 's') + ' in use'],
+    ['Accumulated depreciation', fz2(ue.total.gebucht), 'booked so far'], ['Depreciation ' + J, fz2(jahresAufwand), 'per schedule'],
+    ['Per month', fz2(E.r2(aktiv.reduce((s, x) => s + x.monatlich, 0))), 'next year ' + fz2(naechstes)],
+    ['Booked as planned', Math.abs(ue.total.fehlt) < .005 ? 'in line' : fz2(ue.total.fehlt), Math.abs(ue.total.fehlt) < .005 ? 'up to ' + dateLong(jetzt) : 'missing up to ' + dateLong(jetzt)]]
+    .forEach(f => figs.appendChild(h('div', { class: 'ev-fig' }, [h('div', { class: 'kpi__label' }, [h('span', {}, [f[0]])]), h('div', { class: 'ev-fig__v' }, [f[1]]), h('small', {}, [f[2]])])));
+  /* what is not booked yet this year: one button books it (the same dialog as Book's) */
+  const off = $('#sa-offen'); off.innerHTML = '';
+  if (fort.anlagen.length) off.appendChild(h('div', { class: 'ev-offer' }, [h('span', {}, [fort.anlagen.length + ' asset' + (fort.anlagen.length > 1 ? 's' : '') + ' with depreciation not booked yet in ' + J + ': ' + fort.bookings.length + ' booking' + (fort.bookings.length > 1 ? 's' : '') + ', ' + fz2(fort.anlagen.reduce((s, a) => s + a.betrag, 0)) + '.']),
+    h('button', { type: 'button', class: 'btn btn--secondary btn--sm', onclick: () => fortfuehren({ plaene: [], bookings: [] }, fort) }, ['Book them'])]));
+  saBuchwertChart(reihe, J, animate); saAufwandChart(reihe, J, animate);
+  /* the register */
+  const liste = ue.anlagen.slice().sort((a, b) => (a.abgegangen - b.abgegangen) || (a.anlage.datum < b.anlage.datum ? -1 : 1)), zu = istGeschlossen(J), tb = h('tbody');
+  liste.forEach(x => {
+    const a = x.anlage;
+    const status = a.abgang ? [h('span', { class: 'chip ev-chip-sm' }, [(a.abgang.erloes > 0 ? 'sold ' : 'scrapped ') + dateLong(a.abgang.datum)])]
+      : x.vorStart ? [h('span', { class: 'chip ev-chip-sm' }, ['from ' + a.start])]
+      : Math.abs(x.fehlt) < .005 ? [h('span', { class: 'chip ev-chip-sm is-ok' }, ['in line'])] : [h('span', { class: 'chip ev-chip-sm is-warn' }, [x.fehlt > 0 ? 'to book ' + fz2(x.fehlt) : 'over by ' + fz2(-x.fehlt)])];
+    const knopf = (t, fn, art) => h('button', { type: 'button', class: 'btn btn--sm ' + (art || 'btn--ghost'), onclick: e => { e.stopPropagation(); fn(); } }, [t]);
+    tb.appendChild(h('tr', { class: 'ev-klick' + (saGewaehlt === a.id ? ' is-current' : ''), title: 'Show the schedule', onclick: () => { saGewaehlt = a.id; renderSachanlagenSeite(false); $('#sa-plan-card').scrollIntoView({ behavior: REDUCED ? 'auto' : 'smooth', block: 'nearest' }); } }, [
+      h('td', { class: 'wrap-ok' }, [h('b', {}, [a.text]), h('small', { class: 'ev-inv-acc' }, [a.konto + (a.wb ? ' / ' + a.wb : '') + ' → ' + a.aufwand])]),
+      h('td', { class: 'd' }, [dateLong(a.datum)]), h('td', { class: 'num' }, [fz2(a.kosten), a.restwert ? h('small', { class: 'ev-inv-acc' }, ['residual ' + fz2(a.restwert)]) : null]),
+      h('td', {}, [a.monate + ' m' + (a.rhythmus === 'jahr' ? ', yearly' : ''), h('small', { class: 'ev-inv-acc' }, [x.ende ? 'to ' + dateLong(x.ende + '-01').slice(3) : ''])]),
+      h('td', { class: 'num' }, [fz2(x.abgegangen ? 0 : x.gebucht)]), h('td', { class: 'num' }, [h('b', {}, [fz2(x.buchwert)])]),
+      h('td', { class: 'num' }, [x.abgegangen ? '–' : fz2(x.monatlich)]), h('td', {}, status),
+      h('td', { class: 'a' }, zu ? [] : [knopf('Edit', () => anlageDialog({ id: a.id })), a.abgang ? null : knopf('Sell', () => abgangDialog(a.id)),
+        h('button', { type: 'button', class: 'btn btn--ghost btn--sm btn--icon', 'aria-label': 'Remove ' + a.text + ' from the register', title: 'Remove from the register', html: icon('x', 14), onclick: e => { e.stopPropagation(); anlageEntfernen(a.id); } })])]));
+  });
+  if (liste.length) tb.appendChild(h('tr', { class: 'ev-sumrow' }, [h('td', {}, [h('b', {}, ['Total'])]), h('td'), h('td', { class: 'num' }, [h('b', {}, [fz2(ue.total.kosten)])]), h('td'),
+    h('td', { class: 'num' }, [h('b', {}, [fz2(ue.total.gebucht)])]), h('td', { class: 'num' }, [h('b', {}, [fz2(ue.total.buchwert)])]), h('td'), h('td'), h('td')]));
+  const reg = $('#sa-register'); reg.innerHTML = '';
+  if (!liste.length) reg.appendChild(h('div', { class: 'empty' }, [h('h3', { class: 'empty__title' }, ['No asset yet']), h('p', { class: 'empty__text' }, ['Book a purchase onto an asset account and the register asks for the details, or register an asset already on the books.'])]));
+  else reg.appendChild(h('div', { class: 'ev-scroll' }, [h('table', { class: 'table ev-reg' }, [h('thead', {}, [h('tr', {}, ['Asset', 'Acquired', 'Cost', 'Life', 'Depreciated', 'Net book value', 'Per month', 'Status', '']
+    .map((t, k) => h('th', { class: [2, 4, 5, 6].indexOf(k) >= 0 ? 'num' : (k === 8 ? 'a' : '') }, [t ? h('span', { class: 'th-sort' }, [t]) : null])))]), tb])]));
+  saPlan(liste);
+}
+function saBuchwertChart(reihe, J, animate){
+  const box = $('#sa-chart1'), { W, H, svg } = svgKasten(box, 200), ml = 48, mr = 8, mt = 10, mb = 22, iw = W - ml - mr, ih = H - mt - mb;
+  const A = achse(0, Math.max(1, ...reihe.map(r => r.buchwert))), y = v => mt + (A.hi - v) / (A.hi - A.lo) * ih, x = i => ml + iw * (i + .5) / 12;
+  gitter(svg, A, y, ml, W, mr);
+  const pts = reihe.map((r, i) => [x(i), y(r.buchwert), r]);
+  svg.appendChild(h('path', { class: 'ev-area', d: 'M' + pts.map(q => q[0].toFixed(1) + ',' + q[1].toFixed(1)).join('L') + 'L' + pts[11][0].toFixed(1) + ',' + y(0).toFixed(1) + 'L' + pts[0][0].toFixed(1) + ',' + y(0).toFixed(1) + 'Z' }));
+  svg.appendChild(h('path', { class: 'series ev-worth-line' + (animate && !REDUCED ? ' reveal' : ''), d: smooth(pts.map(q => [q[0], q[1]])) }));
+  pts.forEach(q => { svg.appendChild(h('circle', { class: 'ev-dot ev-dot--worth', cx: q[0].toFixed(1), cy: q[1].toFixed(1), r: 2.6 }));
+    svg.appendChild(h('text', { class: 'axis', x: q[0].toFixed(1), y: H - 5, 'text-anchor': 'middle' }, [q[2].kurz])); });
+  box.innerHTML = ''; box.appendChild(svg);
+  chartHover(box, svg, pts.map(q => ({ x: q[0], y: q[1], titel: 'End of ' + q[2].name + ' ' + J, zeilen: [['Net book value', tsd(q[2].buchwert)], ['Depreciation', tsd(q[2].aufwand)]] })), mt, H - mb);
+}
+function saAufwandChart(reihe, J, animate){
+  const box = $('#sa-chart2'), { W, H, svg } = svgKasten(box, 200), ml = 48, mr = 8, mt = 10, mb = 22, iw = W - ml - mr, ih = H - mt - mb;
+  const A = achse(0, Math.max(1, ...reihe.map(r => r.aufwand))), y = v => mt + (A.hi - v) / (A.hi - A.lo) * ih, band = iw / 12, bw = Math.min(22, band * .55);
+  gitter(svg, A, y, ml, W, mr);
+  const heuteM = heute().slice(0, 7);
+  reihe.forEach((r, i) => { const cx = ml + band * (i + .5), monat = J + '-' + String(r.m).padStart(2, '0');
+    svg.appendChild(h('rect', { class: 'bar ' + (monat > heuteM ? 'exp ev-bar-plan' : 'exp'), x: (cx - bw / 2).toFixed(1), y: y(r.aufwand).toFixed(1), width: bw.toFixed(1), height: Math.max(1, y(0) - y(r.aufwand)).toFixed(1), rx: Math.min(4, bw / 3),
+      style: animate && !REDUCED ? { animationDelay: (i * 35) + 'ms' } : { animation: 'none' } }));
+    svg.appendChild(h('text', { class: 'axis', x: cx.toFixed(1), y: H - 5, 'text-anchor': 'middle' }, [r.kurz])); });
+  box.innerHTML = ''; box.appendChild(svg);
+  chartHover(box, svg, reihe.map((r, i) => ({ x: ml + band * (i + .5), y: null, titel: r.name + ' ' + J + (J + '-' + String(r.m).padStart(2, '0') > heuteM ? ' · planned' : ''),
+    zeilen: [['Depreciation', tsd(r.aufwand)]] })), mt, H - mb);
+}
+/* the schedule of the chosen asset: per year, booked or open; every month in a group that opens */
+function saPlan(liste){
+  const box = $('#sa-plan'), titel = $('#sa-plan-titel'); box.innerHTML = '';
+  const gew = liste.find(x => x.anlage.id === saGewaehlt) || liste.find(x => !x.abgegangen) || liste[0];
+  if (!gew){ titel.textContent = 'Schedule'; $('#sa-plan-sub').textContent = ''; return; }
   saGewaehlt = gew.anlage.id;
-  const jahre = E.anlageJahre(state, gew.anlage), plan = E.anlagePlan(state, gew.anlage);
-  $("#sa-plan-titel").textContent = gew.anlage.text+", straight-line to "+fz(gew.anlage.restwert)+" over "+gew.anlage.monate+" months from "+gew.anlage.start;
-  const maxW = Math.max(gew.anlage.kosten, 1);
-  $("#sa-plan").innerHTML = `<div class="zweispaltig"><div><table class="band"><thead><tr><th>Year</th><th class="num">Opening</th><th class="num">Depreciation</th><th class="num">Closing</th><th>Booked</th></tr></thead><tbody>`+
-    jahre.map(j=>`<tr><td>${esc(j.jahr)}</td><td class="num">${f(j.anfang)}</td><td class="num">${f(j.aufwand)}</td><td class="num"><b>${f(j.ende)}</b></td><td>${j.offen === undefined ? `<span class="chip">by hand</span>` : (j.offen < .005 ? `<span class="chip gruen">booked</span>` : (j.gebucht > .005 ? `<span class="chip amber">${fz(j.offen)} open</span>` : `<span class="chip">open</span>`))}</td></tr>`).join("")+
-    `</tbody></table></div><div><div class="bb-kopf"><span>Net book value at year end</span><span></span></div>`+diaSigniert(jahre.map(j=>({kurz:String(j.jahr).replace(/^before /,"<"), name:j.jahr, v:j.ende})), "v", r=>`<b>${esc(r.name)}</b>`+tipZeile("Net book value", fz(r.v)))+
-    `<details style="margin-top:12px"><summary class="klein mut" style="cursor:pointer">Every month (${plan.zeilen.length})</summary><div class="tabelle" style="max-height:260px;overflow:auto"><table class="band klein"><tbody>`+
-    plan.zeilen.map(z=>`<tr><td>${z.nr}</td><td>${esc(z.monat)}</td><td class="num">${z.betrag === null ? "–" : f(z.betrag)}</td><td class="mut">${({vorher:"before the register", fest:"booked, year closed", gebucht:"booked", offen:"to book", nach:"after the disposal"})[z.quelle]}</td></tr>`).join("")+`</tbody></table></div></details></div></div>`;
+  const a = gew.anlage, jahre = E.anlageJahre(state, a), plan = E.anlagePlan(state, a);
+  titel.textContent = 'Schedule · ' + a.text; $('#sa-plan-sub').textContent = 'Straight-line to ' + fz2(a.restwert) + ' over ' + a.monate + ' months from ' + a.start;
+  const tb = h('tbody');
+  jahre.forEach(j => tb.appendChild(h('tr', {}, [h('td', {}, [j.jahr]), h('td', { class: 'num' }, [fz2(j.anfang)]), h('td', { class: 'num' }, [fz2(j.aufwand)]), h('td', { class: 'num' }, [h('b', {}, [fz2(j.ende)])]),
+    h('td', {}, [j.offen === undefined ? h('span', { class: 'chip ev-chip-sm' }, ['by hand']) : j.offen < .005 ? h('span', { class: 'chip ev-chip-sm is-ok' }, ['booked'])
+      : h('span', { class: 'chip ev-chip-sm is-warn' }, [j.gebucht > .005 ? tsd(j.offen, 2) + ' open' : 'open'])])])));
+  const monate = h('tbody');
+  plan.zeilen.forEach(z => monate.appendChild(h('tr', {}, [h('td', { class: 'd' }, [String(z.nr)]), h('td', {}, [z.monat]), h('td', { class: 'num' }, [z.betrag === null ? '–' : fz2(z.betrag)]),
+    h('td', { class: 'ev-fx' }, [({ vorher: 'before the register', fest: 'booked, year closed', gebucht: 'booked', offen: 'to book', nach: 'after the disposal' })[z.quelle]])])));
+  const g = h('div', { class: 'group' }), kopf = h('button', { type: 'button', class: 'group__head', 'aria-expanded': 'false' }, [h('span', { class: 'chev' }), h('span', { class: 'group__title' }, ['Every month']), h('span', { class: 'group__meta' }, [plan.zeilen.length + ' months'])]);
+  kopf.onclick = () => { const auf = !g.classList.contains('is-open'); g.classList.toggle('is-open', auf); kopf.setAttribute('aria-expanded', String(auf)); };
+  g.appendChild(kopf); g.appendChild(h('div', { class: 'group__body' }, [h('div', { class: 'ev-scroll ev-months' }, [h('table', { class: 'table' }, [monate])])]));
+  box.appendChild(h('div', { class: 'ev-scroll' }, [h('table', { class: 'table' }, [h('thead', {}, [h('tr', {}, ['Year', 'Opening', 'Depreciation', 'Closing', 'Booked'].map((t, k) => h('th', { class: k && k < 4 ? 'num' : '' }, [h('span', { class: 'th-sort' }, [t])])))]), tb])]));
+  box.appendChild(h('div', { class: 'groups ev-plan-months' }, [g]));
 }
-/* ---------- the dialog: a new asset, an existing one, or editing ---------- */
-let anDialog = null;
+
+/* ---------------------------------------------------------------- a dialog with a form (the kit's modal) */
+function formular(o){
+  const vorher = document.activeElement, ov = h('div', { class: 'overlay' }), m = h('div', { class: 'modal' + (o.breit ? ' ev-modal-wide' : ''), role: 'dialog', 'aria-modal': 'true', 'aria-label': o.titel });
+  const zu = () => { document.removeEventListener('keydown', taste, true); ov.classList.add('is-closing'); setTimeout(() => ov.remove(), 200);
+    document.dispatchEvent(new CustomEvent('dl:overlay', { detail: { open: false } })); try { if (vorher) vorher.focus({ preventScroll: true }); } catch (e){} if (o.zu) o.zu(); };
+  const taste = e => { if (e.key === 'Escape'){ e.preventDefault(); e.stopPropagation(); zu(); } };
+  m.appendChild(h('div', { class: 'modal__head' }, [h('div', {}, [h('h2', { class: 'modal__title' }, [o.titel]), o.text ? h('p', { class: 'modal__text' }, [o.text]) : null]),
+    h('button', { type: 'button', class: 'modal__close', 'aria-label': 'Close', html: icon('x', 16), onclick: zu })]));
+  m.appendChild(o.inhalt);
+  const act = h('div', { class: 'modal__actions' }); o.knoepfe.forEach(k => { if (k === 'spacer'){ act.appendChild(h('span', { class: 'spacer' })); return; } act.appendChild(k); });
+  m.appendChild(act); ov.appendChild(m);
+  ov.addEventListener('pointerdown', e => { if (e.target === ov) zu(); });
+  document.body.appendChild(ov); document.addEventListener('keydown', taste, true);
+  document.dispatchEvent(new CustomEvent('dl:overlay', { detail: { open: true } }));
+  return { zu, m };
+}
+/* a labelled field; for a dropdown the label points at the select inside its wrapper */
+const feld = (label, el, o) => h('div', { class: 'field' + (o && o.cls ? ' ' + o.cls : '') }, [h('label', { class: 'field__label', for: el.id || (el.firstChild && el.firstChild.id) || null }, [label].concat(o && o.extra ? [o.extra] : [])), el]);
+const auswahl = (id, liste, wert, leer) => { const s = h('select', { class: 'select', id }); if (leer) s.appendChild(h('option', { value: '' }, [leer]));
+  liste.forEach(k => s.appendChild(h('option', { value: k.nr, selected: k.nr === wert ? true : null }, [k.nr + ' · ' + k.name.slice(0, 60)]))); return s; };
+const umschlag = s => h('span', { class: 'select-wrap' }, [s]);
+const miniFiguren = liste => h('div', { class: 'ev-figs ev-figs--mini' }, liste.map(f => h('div', { class: 'ev-fig' }, [h('div', { class: 'kpi__label' }, [h('span', {}, [f[0]])]), h('div', { class: 'ev-fig__v' + (f[2] ? ' ' + f[2] : '') }, [f[1]])])));
+
+/* ---------------------------------------------------------------- the asset dialog: new, already on the books, or edit */
 function anlageDialog(o){
   o = o || {};
-  const vorhanden = o.id ? (state.anlagen||[]).find(a=> a.id === o.id) : null;
-  const a = vorhanden ? E.anlageNorm(vorhanden) : E.anlageNorm(Object.assign({id:"", datum:o.datum || heute(), konto:o.konto || "", kosten:o.kosten || 0, text:o.text || ""}, o.vorgabe||{}));
-  if(!vorhanden){
-    const v = E.anlageVorschlag(state, ix, a.konto); if(!a.wb && !("wb" in (o.vorgabe||{}))) a.wb = v.wb; if(!a.aufwand) a.aufwand = v.aufwand;
-    if(!a.start) a.start = a.datum.slice(0,7);
-    if(o.bestehend){ a.ab = heute().slice(0,4) === String(state.jahr) ? heute().slice(0,7) : state.jahr+"-01"; } else a.ab = a.start;
-    if(!a.monate) a.monate = /auto|fahrzeug|car|vehicle/i.test(a.text+" "+kontoName(a.konto)) ? 48 : 36;
+  const vorhanden = o.id ? (state.anlagen || []).find(a => a.id === o.id) : null;
+  const a = vorhanden ? E.anlageNorm(vorhanden) : E.anlageNorm(Object.assign({ id: '', datum: o.datum || heute(), konto: o.konto || '', kosten: o.kosten || 0, text: o.text || '' }, o.vorgabe || {}));
+  if (!vorhanden){
+    const v = E.anlageVorschlag(state, ix, a.konto); if (!a.wb && !('wb' in (o.vorgabe || {}))) a.wb = v.wb; if (!a.aufwand) a.aufwand = v.aufwand;
+    if (!a.start) a.start = a.datum.slice(0, 7);
+    a.ab = o.bestehend ? (heute().slice(0, 4) === String(state.jahr) ? heute().slice(0, 7) : state.jahr + '-01') : a.start;
+    if (!a.monate) a.monate = /auto|fahrzeug|car|vehicle/i.test(a.text + ' ' + kontoName(a.konto)) ? 48 : 36;
   }
-  anDialog = {a:a, neu:!vorhanden, bestehend:!!o.bestehend, buchung:o.buchung || null, ausBuchung:!!o.ausBuchung};
-  $("#an-titel").textContent = vorhanden ? "Edit asset" : (o.bestehend ? "Register an asset already on the books" : "New asset");
-  $("#an-lead").textContent = vorhanden ? "Bookings of closed years stay as they are; the rest of the cost is spread evenly over the remaining months (prospective change of estimate)."
-    : (o.bestehend ? "The depreciation booked by hand so far is entered once; the register continues from the month you choose." : "The register books the depreciation month by month against the contra account and shows the schedule before you confirm.");
-  const anlageKonten = saKonten((k, g)=> E.istAnlageGruppe(g) && !/^\s*(abschreibung|wb|wertberichtigung|kumulierte|accumulated)/i.test(k.name));
-  $("#an-konto").innerHTML = saOption(anlageKonten, a.konto, "Choose …");
-  $("#an-text").value = a.text; $("#an-datum").value = fd(a.datum); $("#an-start").value = a.start; $("#an-ab").value = a.ab;
-  $("#an-monate").value = a.monate; $("#an-kosten").value = a.kosten ? zahlFmt(a.kosten) : ""; $("#an-restwert").value = a.restwert ? zahlFmt(a.restwert) : ""; $("#an-vorher").value = a.vorher ? zahlFmt(a.vorher) : "";
-  $("#an-rhythmus").value = a.rhythmus;
-  $("#an-ab-box").hidden = !(o.bestehend || vorhanden); $("#an-vorher-box").hidden = !(o.bestehend || vorhanden);
-  $("#an-nicht").hidden = !o.ausBuchung;
-  $("#an-ok").textContent = vorhanden ? "Save and rebook" : "Register and book";
-  anKontenFuellen(a); anVorschau();
-  oeffneDialog("#dlg-anlage");
-  setTimeout(()=>{ const el = $("#an-text"); if(el){ el.focus(); el.select && el.select(); } }, 30);
-}
-function anKontenFuellen(a){
-  const k = ix.km[a.konto], grp = k ? k.grp : null;
-  const wbListe = saKonten((x, g)=> x.grp === grp && x.nr !== a.konto);
-  $("#an-wb").innerHTML = saOption(wbListe, a.wb, "— none, write the asset account down —");
-  $("#an-aufwand").innerHTML = saOption(saKonten((x, g)=> E.istER(g) && g.vz !== -1), a.aufwand, "Choose …");
-}
-function anLesen(){
-  const a = anDialog.a;
-  a.text = $("#an-text").value.trim(); a.konto = $("#an-konto").value; a.wb = $("#an-wb").value; a.aufwand = $("#an-aufwand").value;
-  a.datum = E.datumAusEingabe($("#an-datum").value, a.datum) || ""; a.start = $("#an-start").value; a.ab = anDialog.bestehend || !anDialog.neu ? ($("#an-ab").value || a.start) : a.start;
-  a.monate = parseInt($("#an-monate").value, 10) || 0; a.kosten = E.r2(E.betragAusEingabe($("#an-kosten").value) || 0); a.restwert = E.r2(E.betragAusEingabe($("#an-restwert").value) || 0);
-  a.vorher = anDialog.bestehend || !anDialog.neu ? E.r2(E.betragAusEingabe($("#an-vorher").value) || 0) : 0; a.rhythmus = $("#an-rhythmus").value;
-  return E.anlageNorm(a);
-}
-function anVorschau(){
-  if(!anDialog) return;
-  const a = anLesen(); anDialog.a = a;
-  const fehler = E.anlagePruefen(a, ix);
-  const box = $("#an-vorschau");
-  if(fehler.length){ box.innerHTML = `<div class="fuss schlecht" style="margin-top:8px">${esc(fehler[0])}</div>`; $("#an-ok").disabled = true; return; }
-  $("#an-ok").disabled = false;
-  const probe = Object.assign({}, state, {anlagen:(state.anlagen||[]).filter(x=> x.id !== a.id).concat([a])});
-  const jahre = E.anlageJahre(probe, a), plan = E.anlagePlan(probe, a);
-  const dieses = jahre.find(j=> j.jahr === String(state.jahr));
-  box.innerHTML = `<div class="leiste" style="margin-top:10px"><div><div class="l">Depreciable</div><div class="v">${fz(plan.basis)}</div></div><div><div class="l">Per month</div><div class="v">${fz(plan.monatlich)}</div></div><div><div class="l">${state.jahr}</div><div class="v">${fz(dieses ? dieses.offen + dieses.gebucht : 0)}</div></div><div><div class="l">Last month</div><div class="v">${esc(plan.ende)}</div></div></div>
-    <div class="zweispaltig" style="margin-top:12px;gap:14px"><div class="tabelle" style="max-height:220px;overflow:auto"><table class="band klein"><thead><tr><th>Year</th><th class="num">Opening</th><th class="num">Charge</th><th class="num">Closing</th></tr></thead><tbody>`+
-    jahre.map(j=>`<tr><td>${esc(j.jahr)}</td><td class="num">${f(j.anfang)}</td><td class="num">${f(j.aufwand)}</td><td class="num"><b>${f(j.ende)}</b></td></tr>`).join("")+`</tbody></table></div>
-    <div>${diaSigniert(jahre.map(j=>({kurz:String(j.jahr).replace(/^before .*$/,"<"), name:j.jahr, v:j.ende})), "v", r=>`<b>${esc(r.name)}</b>`+tipZeile("Net book value", fz(r.v)))}</div></div>`;
-}
-function anSpeichern(){
-  if(!anDialog) return;
-  const a = anLesen(), fehler = E.anlagePruefen(a, ix);
-  if(fehler.length){ meldung(fehler.join(" "), {fehler:true}); return; }
-  const neu = anDialog.neu;
-  if(neu) a.id = "a"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
-  if(anDialog.buchung) a.buchung = anDialog.buchung;
-  let n = 0;
-  const ok = aendere(neu ? "Asset registered" : "Asset changed", ()=>{
-    state.anlagen = (state.anlagen||[]).filter(x=> x.id !== a.id); state.anlagen.push(a);
-    n = E.anlageNeuBuchen(state, ix, a, state.jahr, naechsteId);
-  });
-  if(!ok) return;
-  schliesseDialog("#dlg-anlage"); anDialog = null; saGewaehlt = a.id;
-  meldung((neu ? "Registered: " : "Saved: ")+a.text+", "+n+" depreciation booking"+(n===1?"":"s")+" in "+state.jahr+".", {aktion:{text:"Undo", fn:rueckgaengig}});
+  const mitAb = !!(o.bestehend || vorhanden);
+  const I = (id, attrs) => h('input', Object.assign({ class: 'input', id, autocomplete: 'off' }, attrs));
+  const f = {
+    text: I('an-text', { value: a.text, placeholder: 'Company car' }), datum: I('an-datum', { value: dateLong(a.datum), inputmode: 'numeric', placeholder: 'dd.mm.yyyy' }),
+    kosten: I('an-kosten', { class: 'input num', value: a.kosten ? zahlFmt(a.kosten) : '', inputmode: 'decimal', placeholder: '0.00' }),
+    konto: auswahl('an-konto', saKonten((k, g) => E.istAnlageGruppe(g) && !/^\s*(abschreibung|wb|wertberichtigung|kumulierte|accumulated)/i.test(k.name)), a.konto, 'Choose …'),
+    wb: null, aufwand: null, start: I('an-start', { type: 'month', value: a.start }),
+    rhythmus: (() => { const s = h('select', { class: 'select', id: 'an-rhythmus' }, [h('option', { value: 'monat' }, ['monthly, at month end']), h('option', { value: 'jahr' }, ['once a year, at 31.12.'])]); s.value = a.rhythmus; return s; })(),
+    monate: I('an-monate', { class: 'input num', type: 'number', min: '1', max: '1200', step: '1', value: a.monate }),
+    restwert: I('an-restwert', { class: 'input num', value: a.restwert ? zahlFmt(a.restwert) : '', inputmode: 'decimal', placeholder: '0.00' }),
+    ab: I('an-ab', { type: 'month', value: a.ab }), vorher: I('an-vorher', { class: 'input num', value: a.vorher ? zahlFmt(a.vorher) : '', inputmode: 'decimal', placeholder: '0.00' })
+  };
+  const kontraUndAufwand = () => {
+    const k = ix.km[a.konto], grp = k ? k.grp : null;
+    const wb = auswahl('an-wb', saKonten(x => x.grp === grp && x.nr !== a.konto), a.wb, '— none, write the asset account down —');
+    const auf = auswahl('an-aufwand', saKonten((x, g) => E.istER(g) && g.vz !== -1), a.aufwand, 'Choose …');
+    if (f.wb){ f.wb.parentNode.replaceWith(umschlag(wb)); f.aufwand.parentNode.replaceWith(umschlag(auf)); }
+    f.wb = wb; f.aufwand = auf; [wb, auf].forEach(s => s.addEventListener('change', vorschau));
+  };
+  kontraUndAufwand();
+  const jahrKnopf = n => h('button', { type: 'button', class: 'ev-link', onclick: () => { f.monate.value = n * 12; vorschau(); } }, [n + ' y']);
+  const vorschauBox = h('div', { class: 'ev-an-preview' });
+  const inhalt = h('div', { class: 'ev-an' }, [
+    h('div', { class: 'ev-an__grid' }, [
+      feld('Asset', f.text, { cls: 'span2' }), feld('Acquired on', f.datum), feld('Cost', f.kosten),
+      feld('Asset account', umschlag(f.konto), { cls: 'span2' }), feld('Contra account (accumulated depreciation)', umschlag(f.wb), { cls: 'span2' }),
+      feld('Depreciation account', umschlag(f.aufwand), { cls: 'span2' }), feld('First month', f.start, { cls: 'ev-month-f' }), feld('Booked', umschlag(f.rhythmus), { cls: 'ev-month-f' }),
+      feld('Useful life, months', h('div', { class: 'ev-life' }, [f.monate, h('span', { class: 'ev-links' }, [3, 4, 5, 10].map(jahrKnopf))])), feld('Residual value', f.restwert),
+      mitAb ? feld('Register books from', f.ab, { cls: 'ev-month-f' }) : null, mitAb ? feld('Depreciated before that, by hand', f.vorher, { cls: 'ev-month-f' }) : null]),
+    vorschauBox]);
+  const ok = h('button', { type: 'button', class: 'btn btn--primary' }, [vorhanden ? 'Save and rebook' : 'Register and book']);
+  const knoepfe = [h('button', { type: 'button', class: 'btn btn--secondary', onclick: () => dlg.zu() }, ['Cancel'])];
+  if (o.ausBuchung) knoepfe.push(h('button', { type: 'button', class: 'btn btn--ghost', onclick: () => dlg.zu() }, ['Not an asset']));
+  knoepfe.push('spacer', ok);
+  const dlg = formular({ titel: vorhanden ? 'Edit asset' : (o.bestehend ? 'Register an asset already on the books' : 'New asset'), breit: true,
+    text: vorhanden ? 'Bookings of closed years stay as they are; the rest of the cost is spread evenly over the remaining months (prospective change of estimate).'
+      : o.bestehend ? 'The depreciation booked by hand so far is entered once; the register continues from the month you choose.'
+      : o.ausBuchung ? 'This booking went onto an asset account. Register it, and the depreciation is booked month by month.' : 'The register books the depreciation month by month against the contra account and shows the schedule before you confirm.',
+    inhalt, knoepfe });
+  function lesen(){
+    a.text = f.text.value.trim(); a.konto = f.konto.value; a.wb = f.wb.value; a.aufwand = f.aufwand.value;
+    a.datum = E.datumAusEingabe(f.datum.value, a.datum) || ''; a.start = f.start.value; a.ab = mitAb ? (f.ab.value || a.start) : a.start;
+    a.monate = parseInt(f.monate.value, 10) || 0; a.kosten = E.r2(E.betragAusEingabe(f.kosten.value) || 0); a.restwert = E.r2(E.betragAusEingabe(f.restwert.value) || 0);
+    a.vorher = mitAb ? E.r2(E.betragAusEingabe(f.vorher.value) || 0) : 0; a.rhythmus = f.rhythmus.value;
+    return E.anlageNorm(a);
+  }
+  function vorschau(){
+    const n = lesen(), fehler = E.anlagePruefen(n, ix);
+    vorschauBox.innerHTML = '';
+    if (fehler.length){ ok.disabled = true; vorschauBox.appendChild(h('div', { class: 'ev-check is-fehler' }, [h('span', { class: 'ev-check__i', html: icon('x', 12) }), h('span', {}, [fehler[0]])])); return; }
+    ok.disabled = false;
+    const probe = Object.assign({}, state, { anlagen: (state.anlagen || []).filter(x => x.id !== n.id).concat([n]) });
+    const jahre = E.anlageJahre(probe, n), plan = E.anlagePlan(probe, n), dieses = jahre.find(j => j.jahr === String(state.jahr));
+    vorschauBox.appendChild(miniFiguren([['Depreciable', fz2(plan.basis)], ['Per month', fz2(plan.monatlich)], [String(state.jahr), fz2(dieses ? dieses.offen + dieses.gebucht : 0)], ['Last month', plan.ende]]));
+    const tb = h('tbody'); jahre.forEach(j => tb.appendChild(h('tr', {}, [h('td', {}, [j.jahr]), h('td', { class: 'num' }, [fz2(j.anfang)]), h('td', { class: 'num' }, [fz2(j.aufwand)]), h('td', { class: 'num' }, [h('b', {}, [fz2(j.ende)])])])));
+    vorschauBox.appendChild(h('div', { class: 'ev-scroll ev-an-years' }, [h('table', { class: 'table' }, [h('thead', {}, [h('tr', {}, ['Year', 'Opening', 'Charge', 'Closing'].map((t, k) => h('th', { class: k ? 'num' : '' }, [h('span', { class: 'th-sort' }, [t])])))]), tb])]));
+  }
+  f.konto.addEventListener('change', () => { lesen(); const v = E.anlageVorschlag(state, ix, a.konto); a.wb = v.wb; a.aufwand = v.aufwand || a.aufwand; kontraUndAufwand(); vorschau(); });
+  [f.rhythmus, f.start, f.ab].forEach(el => el.addEventListener('change', vorschau));
+  [f.text, f.datum, f.monate, f.kosten, f.restwert, f.vorher].forEach(el => el.addEventListener('input', vorschau));
+  ok.onclick = () => {
+    const n = lesen(), fehler = E.anlagePruefen(n, ix);
+    if (fehler.length){ toast(fehler.join(' '), { type: 'error' }); return; }
+    if (!vorhanden) n.id = 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    if (o.buchung) n.buchung = o.buchung;
+    let anz = 0; const nextId = () => naechsteId();
+    if (!aendere(vorhanden ? 'Asset changed' : 'Asset registered', () => {
+      state.anlagen = (state.anlagen || []).filter(x => x.id !== n.id); state.anlagen.push(n);
+      anz = E.anlageNeuBuchen(state, ix, n, state.jahr, nextId);
+    })) return;
+    dlg.zu(); saGewaehlt = n.id; render(false);
+    toast((vorhanden ? 'Saved: ' : 'Registered: ') + n.text + ', ' + anz + ' depreciation booking' + (anz === 1 ? '' : 's') + ' in ' + state.jahr + '.', { type: 'success', action: { text: 'Undo', fn: rueckgaengig } });
+  };
+  vorschau();
+  setTimeout(() => { f.text.focus(); f.text.select(); }, 40);
 }
 async function anlageEntfernen(id){
-  const a = (state.anlagen||[]).find(x=> x.id === id); if(!a) return;
-  const eigene = (state.buchungen||[]).filter(b=> b.plan && b.plan.id === id && !istGeschlossen(b.datum.slice(0,4)));
-  const wahl = await frage("Remove "+esc(a.text)+" from the register?", eigene.length ? "It has "+eigene.length+" depreciation booking"+(eigene.length===1?"":"s")+" in open years. Keep them as ordinary bookings, or delete them with it?" : "No bookings of the register are affected.",
-    [{text:"Cancel", wert:null, art:"leicht"}].concat(eigene.length ? [{text:"Keep bookings", wert:"behalten", art:"leicht"}, {text:"Delete bookings too", wert:"loeschen", art:"gefahr"}] : [{text:"Remove", wert:"behalten", art:"gefahr"}]));
-  if(!wahl) return;
-  aendere("Asset removed from the register", ()=>{
-    state.anlagen = (state.anlagen||[]).filter(x=> x.id !== id);
-    if(wahl === "loeschen") state.buchungen = state.buchungen.filter(b=> !(b.plan && b.plan.id === id && !istGeschlossen(b.datum.slice(0,4))));
-    else state.buchungen.forEach(b=>{ if(b.plan && b.plan.id === id) delete b.plan; });
-  });
+  const a = (state.anlagen || []).find(x => x.id === id); if (!a) return;
+  const eigene = state.buchungen.filter(b => b.plan && b.plan.id === id && !istGeschlossen(b.datum.slice(0, 4)));
+  const wahl = await frage('Remove ' + a.text + ' from the register?', eigene.length ? 'It has ' + eigene.length + ' depreciation booking' + (eigene.length === 1 ? '' : 's') + ' in open years. Keep them as ordinary bookings, or delete them with it?' : 'No bookings of the register are affected.',
+    eigene.length ? [{ text: 'Cancel', wert: null, art: 'leicht' }, { text: 'Delete the bookings too', wert: 'loeschen', art: 'gefahr' }, { text: 'Keep the bookings', wert: 'behalten' }]
+      : [{ text: 'Cancel', wert: null, art: 'leicht' }, { text: 'Remove', wert: 'behalten', art: 'gefahr' }]);
+  if (!wahl) return;
+  if (!aendere('Asset removed from the register', () => {
+    state.anlagen = state.anlagen.filter(x => x.id !== id);
+    if (wahl === 'loeschen') state.buchungen = state.buchungen.filter(b => !(b.plan && b.plan.id === id && !istGeschlossen(b.datum.slice(0, 4))));
+    else state.buchungen.forEach(b => { if (b.plan && b.plan.id === id) delete b.plan; });
+  })) return;
+  render(false); toast(a.text + ' removed from the register.', { action: { text: 'Undo', fn: rueckgaengig } });
 }
-/* ---------- disposal ---------- */
-let abDialog = null;
+/* ---------------------------------------------------------------- the disposal: depreciation to the month, then out with gain or loss */
 function abgangDialog(id){
-  const a = (state.anlagen||[]).find(x=> x.id === id); if(!a) return;
-  abDialog = {id:id};
-  $("#ab-titel").textContent = "Sell or scrap: "+a.text;
-  $("#ab-datum").value = fd(heute().slice(0,4) === String(state.jahr) ? heute() : state.jahr+"-12-31"); $("#ab-erloes").value = "";
-  $("#ab-konto").innerHTML = saOption(saKonten((k, g)=> g && g.s === "A" && (E.cfKonto(ix, k) === "fonds" || /^1[01]/.test(k.nr))), "1020", "Choose …");
-  const ak = saAbgangKonten(); $("#ab-konten").textContent = "Gain to "+ak.gewinn+", loss to "+ak.verlust+(ak.neu.length ? " (created in the depreciation group on booking)" : "")+".";
-  abVorschau(); oeffneDialog("#dlg-abgang");
-}
-function abLesen(){ const ak = saAbgangKonten(); return {datum:E.datumAusEingabe($("#ab-datum").value, heute()) || "", erloes:E.r2(E.betragAusEingabe($("#ab-erloes").value) || 0), konto:$("#ab-konto").value, gewinn:ak.gewinn, verlust:ak.verlust, neu:ak.neu}; }
-function abVorschau(){
-  if(!abDialog) return;
-  const a = (state.anlagen||[]).find(x=> x.id === abDialog.id), o = abLesen();
-  const ixProbe = o.neu.length ? E.ctx(Object.assign({}, state, {konten:state.konten.concat(o.neu)})) : ix;
-  const r = E.anlageAbgang(state, ixProbe, a, o);
-  const box = $("#ab-vorschau");
-  if(!r.ok){ box.innerHTML = `<div class="fuss schlecht" style="margin-top:8px">${esc(r.fehler[0])}</div>`; $("#ab-ok").disabled = true; return; }
-  $("#ab-ok").disabled = false;
-  box.innerHTML = `<div class="leiste" style="margin-top:10px"><div><div class="l">Depreciated to ${fd(o.datum)}</div><div class="v">${fz(r.gebucht)}</div></div><div><div class="l">Net book value</div><div class="v">${fz(r.buchwert)}</div></div><div><div class="l">Proceeds</div><div class="v">${fz(r.erloes)}</div></div><div><div class="l">${r.ergebnis >= 0 ? "Gain" : "Loss"} on disposal</div><div class="v ${r.ergebnis < 0 ? "neg" : ""}">${fz(r.ergebnis)}</div></div></div>
-    <p class="klein mut" style="margin:10px 0 0">${r.abschreibung} depreciation booking${r.abschreibung===1?"":"s"} added up to the disposal, ${r.umdatieren.length} moved to the disposal date, ${r.entfernen.length} later one${r.entfernen.length===1?"":"s"} removed, then: ${r.bookings[r.bookings.length-1].z.map(z=> esc(z[0])+" "+(z[1] ? "Dr "+fz(z[1]) : "Cr "+fz(z[2]))).join(" · ")}</p>`;
-}
-function abBuchen(){
-  if(!abDialog) return;
-  const a = (state.anlagen||[]).find(x=> x.id === abDialog.id), o = abLesen();
-  const ok = aendere("Asset disposed of", ()=>{
-    if(o.neu.length){ o.neu.forEach(k=> state.konten.push(k)); ix = E.ctx(state); }
-    const r = E.anlageAbgang(state, ix, a, o);
-    if(!r.ok) throw new Error(r.fehler.join(" "));
-    E.anlageAbgangBuchen(state, a, r, naechsteId);
-  }, {geruest:!!o.neu.length});
-  if(!ok) return;
-  schliesseDialog("#dlg-abgang"); abDialog = null;
-  meldung("Disposal booked for "+a.text+".", {aktion:{text:"Undo", fn:rueckgaengig}});
-}
-/* ---------- wiring ---------- */
-["#an-konto","#an-wb","#an-aufwand","#an-rhythmus","#an-start","#an-ab"].forEach(s=> $(s).addEventListener("change", ()=>{ if(s === "#an-konto" && anDialog){ const a = anLesen(); const v = E.anlageVorschlag(state, ix, a.konto); a.wb = v.wb; a.aufwand = v.aufwand || a.aufwand; anKontenFuellen(a); } anVorschau(); }));
-["#an-text","#an-datum","#an-monate","#an-kosten","#an-restwert","#an-vorher"].forEach(s=> $(s).addEventListener("input", anVorschau));
-$$("[data-an-jahre]").forEach(b=> b.onclick = ()=>{ $("#an-monate").value = +b.dataset.anJahre*12; anVorschau(); });
-$("#an-ok").onclick = anSpeichern;
-$("#an-nicht").onclick = ()=>{ schliesseDialog("#dlg-anlage"); anDialog = null; };
-$("#an-abbruch").onclick = ()=>{ schliesseDialog("#dlg-anlage"); anDialog = null; };
-["#ab-datum","#ab-erloes"].forEach(s=> $(s).addEventListener("input", abVorschau)); $("#ab-konto").addEventListener("change", abVorschau);
-$("#ab-ok").onclick = abBuchen; $("#ab-abbruch").onclick = ()=>{ schliesseDialog("#dlg-abgang"); abDialog = null; };
-$("#sa-neu").onclick = ()=>{
-  const konten = saKonten((k, g)=> E.anlageKonto(ix, k.nr));
-  const s = E.saldoPer(state, state.jahr+"-12-31");
-  const mit = konten.filter(k=> Math.abs(s[k.nr]||0) > .005 && !(state.anlagen||[]).some(a=> a.konto === k.nr && a.status !== "abgegangen"));
-  const k = mit[0] || konten[0];
-  if(!k){ meldung("No fixed-asset account in the chart. Flag the group on the Structure page first.", {fehler:true}); return; }
-  const v = E.anlageVorschlag(state, ix, k.nr), heuteM = heute().slice(0,7);
-  const vorMonat = E.monatPlus(heuteM, -1), sVor = E.saldoPer(state, E.monatsende(vorMonat));
-  const vorher = v.wb ? E.r2(-(sVor[v.wb]||0)) : 0;
-  anlageDialog({bestehend:true, konto:k.nr, kosten:E.r2(s[k.nr]||0), text:kontoName(k.nr).replace(/\s*\(.*$/, ""), datum:state.jahr+"-01-01", vorgabe:{vorher:vorher > 0 ? vorher : 0}});
-};
-
-/* ---------- Hooks: how the engine talks to the app ------------------- */
-let FS_AKTUELL = null;      // engine of the page on screen; its S holds the editable settings
-function fsHooks(){
-  return {
-    toast: (m, art) => meldung(m, {fehler: art === "err"}),
-    touch: neu => fsSpeichern(neu),
-    go: p => zeigeTab({bs:"bilanz", is:"erfolg", cf:"geldfluss", inv:"anlagen", ov:"ueberjahre"}[p] || p)
+  const a = (state.anlagen || []).find(x => x.id === id); if (!a) return;
+  const ak = saAbgangKonten();
+  const datum = h('input', { class: 'input', id: 'ab-datum', inputmode: 'numeric', autocomplete: 'off', placeholder: 'dd.mm.yyyy', value: dateLong(heute().slice(0, 4) === String(state.jahr) ? heute() : state.jahr + '-12-31') });
+  const erloes = h('input', { class: 'input num', id: 'ab-erloes', inputmode: 'decimal', autocomplete: 'off', placeholder: '0.00' });
+  const konto = auswahl('ab-konto', saKonten((k, g) => g && g.s === 'A' && (E.cfKonto(ix, k) === 'fonds' || /^1[01]/.test(k.nr))), '1020', 'Choose …');
+  const box = h('div', { class: 'ev-an-preview' }), ok = h('button', { type: 'button', class: 'btn btn--primary' }, ['Book the disposal']);
+  const inhalt = h('div', { class: 'ev-an' }, [h('div', { class: 'ev-an__grid ev-an__grid--2' }, [feld('Disposal date', datum), feld('Proceeds (0 = scrapped)', erloes), feld('Proceeds received on', umschlag(konto), { cls: 'span2' })]),
+    h('p', { class: 'note' }, ['Gain to ' + ak.gewinn + ', loss to ' + ak.verlust + (ak.neu.length ? ' (created in the depreciation group on booking)' : '') + '.']), box]);
+  const dlg = formular({ titel: 'Sell or scrap: ' + a.text, text: 'Depreciation runs to the month of the disposal; the asset and its accumulated depreciation leave the balance sheet, the difference to the proceeds is the gain or loss.',
+    inhalt, knoepfe: [h('button', { type: 'button', class: 'btn btn--secondary', onclick: () => dlg.zu() }, ['Cancel']), 'spacer', ok] });
+  const lesen = () => ({ datum: E.datumAusEingabe(datum.value, heute()) || '', erloes: E.r2(E.betragAusEingabe(erloes.value) || 0), konto: konto.value, gewinn: ak.gewinn, verlust: ak.verlust, neu: ak.neu });
+  const vorschau = () => {
+    const o = lesen(), ixP = o.neu.length ? E.ctx(Object.assign({}, state, { konten: state.konten.concat(o.neu) })) : ix, r = E.anlageAbgang(state, ixP, a, o);
+    box.innerHTML = '';
+    if (!r.ok){ ok.disabled = true; box.appendChild(h('div', { class: 'ev-check is-fehler' }, [h('span', { class: 'ev-check__i', html: icon('x', 12) }), h('span', {}, [r.fehler[0]])])); return; }
+    ok.disabled = false;
+    box.appendChild(miniFiguren([['Depreciated to ' + dateLong(o.datum), fz2(r.gebucht)], ['Net book value', fz2(r.buchwert)], ['Proceeds', fz2(r.erloes)], [(r.ergebnis >= 0 ? 'Gain' : 'Loss') + ' on disposal', fz2(r.ergebnis)]]));
+    box.appendChild(h('p', { class: 'note' }, [r.abschreibung + ' depreciation booking' + (r.abschreibung === 1 ? '' : 's') + ' added up to the disposal, ' + r.umdatieren.length + ' moved to the disposal date, ' + r.entfernen.length + ' later one' + (r.entfernen.length === 1 ? '' : 's') + ' removed, then: '
+      + r.bookings[r.bookings.length - 1].z.map(z => z[0] + ' ' + (z[1] ? 'Dr ' + fz2(z[1]) : 'Cr ' + fz2(z[2]))).join(' · ')]));
   };
+  [datum, erloes].forEach(el => el.addEventListener('input', vorschau)); konto.addEventListener('change', vorschau);
+  ok.onclick = () => {
+    const o = lesen();
+    if (!aendere('Asset disposed of', () => {
+      if (o.neu.length){ o.neu.forEach(k => state.konten.push(k)); ix = E.ctx(state); }
+      const r = E.anlageAbgang(state, ix, a, o); if (!r.ok) throw new Error(r.fehler.join(' '));
+      E.anlageAbgangBuchen(state, a, r, () => naechsteId());
+    })) return;
+    dlg.zu(); render(false); toast('Disposal booked for ' + a.text + '.', { type: 'success', action: { text: 'Undo', fn: rueckgaengig } });
+  };
+  vorschau(); setTimeout(() => erloes.focus(), 40);
 }
-function fsSpeichern(neuZeichnen){
-  const S = FS_AKTUELL && FS_AKTUELL.S; if(!S) return;
-  aendere("Statement settings changed", ()=>{
-    state.auswertung = state.auswertung || {};
-    ["cfOverrides","ncOverrides","ncTx","investments","forecast","invView"].forEach(k=>{ if(S[k] !== undefined && S[k] !== null) state.auswertung[k] = JSON.parse(JSON.stringify(S[k])); });
-  }, {render: !!neuZeichnen});
+/* an asset already on the books: the account with a balance and no register entry yet comes first */
+function bestehendeAnlage(){
+  const konten = saKonten(k => E.anlageKonto(ix, k.nr)), s = E.saldoPer(state, state.jahr + '-12-31');
+  const mit = konten.filter(k => Math.abs(s[k.nr] || 0) > .005 && !(state.anlagen || []).some(a => a.konto === k.nr && a.status !== 'abgegangen'));
+  const k = mit[0] || konten[0];
+  if (!k){ toast('No fixed-asset account in the chart. Flag the group on the Structure page first.', { type: 'error' }); return; }
+  const v = E.anlageVorschlag(state, ix, k.nr), vorMonat = E.monatPlus(heute().slice(0, 7), -1), sVor = E.saldoPer(state, E.monatsende(vorMonat));
+  const vorher = v.wb ? E.r2(-(sVor[v.wb] || 0)) : 0;
+  anlageDialog({ bestehend: true, konto: k.nr, kosten: E.r2(s[k.nr] || 0), text: kontoName(k.nr).replace(/\s*\(.*$/, ''), datum: state.jahr + '-01-01', vorgabe: { vorher: vorher > 0 ? vorher : 0 } });
 }
-// statements, settings and exports: the selected year with its months
-function fsKern(){
-  const st = state.ui.fs || {};
-  const K = fsDaten(state, ix, E, {jahr:state.jahr, p:st.p, c:st.c, hooks:fsHooks(),
-    zerosBS: $("#bi-null") && $("#bi-null").checked, zerosIS: $("#er-null") && $("#er-null").checked, cfShowAll: $("#cfShowAll") && $("#cfShowAll").checked});
-  FS_AKTUELL = K;
-  return K;
-}
-// overview and investments: every month end of every year, up to the last completed month
-function fsVerlauf(){
-  const h = heute(), jetzt = h.slice(0,7);
-  const vor = h.slice(5,7) === "01" ? (+h.slice(0,4)-1)+"-12" : h.slice(0,4)+"-"+String(+h.slice(5,7)-1).padStart(2,"0");
-  const jahre = Object.keys(E.jahreMitBuchungen(state)).map(Number);
-  const letztes = jahre.length ? Math.max.apply(null, jahre) : state.jahr;
-  const bis = String(letztes) < vor.slice(0,4) ? letztes+"-12" : vor;
-  const j = +bis.slice(0,4);
-  const K = fsDaten(state, ix, E, {jahr:j, alleMonate:true, ohneEroeffnung:true, bis:bis, hooks:fsHooks()});
-  const per = K.periods(), p = per.indexOf(bis) >= 0 ? bis : per[per.length-1];
-  const c = per.indexOf((j-1)+"-12") >= 0 && p !== (j-1)+"-12" ? (j-1)+"-12" : per[Math.max(0, per.indexOf(p)-1)];
-  K.S.activePeriod = p; K.S.comparePeriod = c;
-  FS_AKTUELL = K;
-  return K;
-}
-function renderUeberJahre(){
-  const K = fsVerlauf();
-  setzeUntertitel("All years in this file, up to the last completed month");
-  K.renderOverview();
-  fsDonut(K);
-}
-// doughnut of the investments ticked under Statement settings
-const DONUT_FARBEN = [1,2,3,4,5,6,7,8,9,10].map(i=> "var(--ev-d"+i+")");
-function donutRing(teile, titel, wert){
-  const total = teile.reduce((s2, x)=> s2 + x.wert, 0) || 1, r = 84, u = 2*Math.PI*r; let lauf = 0;
-  return `<circle cx="110" cy="110" r="${r}" fill="none" stroke="var(--papier2)" stroke-width="26"/><g class="dreh">`+
-    teile.map((x, i)=>{ const l = x.wert/total*u, gap = teile.length > 1 ? Math.min(2, l/3) : 0;
-      const seg = `<circle class="seg" data-i="${i}" cx="110" cy="110" r="${r}" fill="none" style="stroke:${DONUT_FARBEN[i % DONUT_FARBEN.length]}" stroke-width="26"
-        stroke-dasharray="${(l-gap).toFixed(2)} ${(u-l+gap).toFixed(2)}" stroke-dashoffset="${(-lauf).toFixed(2)}" transform="rotate(-90 110 110)" data-tip="${esc(x.tip)}"/>`;
-      lauf += l; return seg; }).join("")+
-    `</g><text x="110" y="104" text-anchor="middle" class="d-l">${esc(titel)}</text><text x="110" y="126" text-anchor="middle" class="d-v">${esc(wert)}</text>`;
-}
-function donutHell(svgId, listeId){
-  const hell = i => { $$("#"+svgId+" .seg").forEach(c=> c.classList.toggle("blass", i !== null && c.dataset.i !== String(i)));
-    $$("#"+listeId+" .z").forEach(z=> z.classList.toggle("an", z.dataset.i === String(i))); };
-  $$("#"+svgId+" .seg, #"+listeId+" .z").forEach(el=>{ el.addEventListener("mouseenter", ()=> hell(el.dataset.i)); el.addEventListener("mouseleave", ()=> hell(null)); });
-}
-function donutEin(svg){ if(svg && BEWEGUNG){ svg.classList.remove("ein"); void svg.getBoundingClientRect(); svg.classList.add("ein"); } }
-function fsDonut(K){
-  const p = K.S.activePeriod, summe = accs => K.r2(accs.reduce((s, a)=> s + K.accVal(p, a), 0));
-  const teile = K.investments().filter(i=> i.include).map(i=>({label:i.label, wert:K.r2(summe(i.pay)+summe(i.adj)), bezahlt:summe(i.pay)}))
-    .filter(x=> x.wert > .005).sort((a,b)=> b.wert - a.wert);
-  const total = K.r2(teile.reduce((s, x)=> s + x.wert, 0));
-  $("#ovDonutMeta").textContent = "as at "+fd(K.rep(p).asOf)+", "+K.CUR();
-  const svg = $("#ovDonut"), liste = $("#ovDonutListe");
-  if(!teile.length){ svg.innerHTML = ""; liste.innerHTML = `<p class="mut klein">No investment ticked yet. Tick them under Setup, Statement settings.</p>`; return; }
-  svg.innerHTML = donutRing(teile.map(x=>({wert:x.wert, tip:`<b>${esc(x.label)}</b>`+tipZeile("Value", K.fmt(x.wert))+tipZeile("Paid in", K.fmt(x.bezahlt))+tipZeile("Share", (x.wert/total*100).toFixed(1)+"%")})), "Invested", K.fmt(total));
-  liste.innerHTML = teile.map((x, i)=>`<div class="z" data-i="${i}"><i style="background:${DONUT_FARBEN[i % DONUT_FARBEN.length]}"></i><span class="t">${esc(x.label)}</span>
-    <span class="num">${K.fmt(x.wert)}</span><span class="num mut">${(x.wert/total*100).toFixed(1)}%</span></div>`).join("");
-  donutHell("ovDonut", "ovDonutListe");
-  donutEin(svg);
-}
-function renderAnlagen(){
-  const K = fsVerlauf();
-  setzeUntertitel("");
-  K.renderInv();
-}
-function renderFsEinstellungen(){
-  const K = fsKern(); fsWahl(K);
-  setzeUntertitel("Movements from "+K.periodLabel(K.S.comparePeriod)+" to "+K.periodLabel(K.S.activePeriod));
-  renderCfKlassen(K);
-  K.renderInvMap();
-}
-// cash flow class of every balance sheet account (stored as cfOverrides where it differs from the number range)
-const CF_KLASSEN = [["cash","Cash"],["opAsset","Operating (assets)"],["opLiab","Operating (liabilities)"],["invest","Investing"],["finLiab","Financing (debt)"],["equity","Financing (equity)"]];
-function renderCfKlassen(K){
-  const t = $("#cfMapTable"); if(!t) return;
-  const w = fsWahl(K), alle = $("#cfShowAll").checked, ov = K.S.cfOverrides = K.S.cfOverrides || {};
-  const cf = w.p !== w.c ? cfDirektZwischen(K, state, w.p, w.c) : null, fluss = {};
-  if(cf) ["op","inv","fin","fx"].forEach(k=> cf.bereiche[k].forEach(l=> l.konten.forEach(o=> fluss[o.a] = o.v)));
-  const auto = a => { const o = ov[a]; delete ov[a]; const k = K.cfClassOf(a); if(o !== undefined) ov[a] = o; return k; };
-  const zeile = (state.auswertung || {}).cfZeile || {};
-  const isGruppen = K.IS.filter(n=> n.k === "g");
-  const liste = K.allAccounts().filter(a=> +a < 3000 && (alle || ov[a] || zeile[a] || fluss[a] !== undefined));   // bank accounts only with "Show every account"; cards in cash carry an override
-  t.innerHTML = `<thead><tr><th>Acct</th><th>Name</th><th class="num">Cash flow</th><th>Section</th><th>Shown under</th></tr></thead><tbody>`+
-    liste.map(a=>{
-      const k = K.cfClassOf(a), eigen = ov[a] && ov[a] !== auto(a);
-      return `<tr><td style="font-variant-numeric:tabular-nums;font-size:12px">${esc(a)}</td><td>${esc(K.nameOf(a))}</td>`+
-        `<td class="num">${fluss[a] !== undefined ? K.fmt(fluss[a]) : k === "cash" ? '<span class="mut">cash</span>' : "–"}</td>`+
-        `<td><select class="pill" style="padding:5px 26px 5px 9px;font-size:12px" data-cfk="${esc(a)}">`+
-        CF_KLASSEN.map(([v, l])=>`<option value="${v}"${v === k ? " selected" : ""}>${esc(l)}${v === auto(a) && eigen ? " (default)" : ""}</option>`).join("")+
-        `</select>${eigen ? ' <span class="chip">set</span>' : ""}</td>`+
-        `<td>${k === "opAsset" || k === "opLiab" ? `<select class="pill" style="padding:5px 26px 5px 9px;font-size:12px" data-cfz="${esc(a)}">`+
-          `<option value="">its own group</option>`+isGruppen.map(g=>`<option value="${esc(g.id)}"${zeile[a] === g.id ? " selected" : ""}>${esc(g.l)}</option>`).join("")+`</select>` : ""}</td></tr>`;
-    }).join("")+`</tbody>`;
-  $$("[data-cfz]", t).forEach(sel=> sel.onchange = ()=>{
-    const a = sel.dataset.cfz;
-    aendere("Cash flow: "+a+(sel.value ? " shown under "+((K.GROUPS[sel.value] || {}).l || sel.value) : " shown under its own group"), ()=>{
-      state.auswertung = state.auswertung || {}; const z = state.auswertung.cfZeile = state.auswertung.cfZeile || {};
-      if(sel.value) z[a] = sel.value; else delete z[a];
-    });
-  });
-  $$("[data-cfk]", t).forEach(sel=> sel.onchange = ()=>{
-    const a = sel.dataset.cfk, d = auto(a);
-    if(sel.value === d) delete ov[a]; else ov[a] = sel.value;
-    K.S.touch(true);
-  });
-}
-/* ---------- Financial statements report (layout of 10 October) ------- */
-// rows straight from the engine's own tables, so figures and grouping are exactly the statement pages'
-function fsZeilen(html, detail){
-  const t = document.createElement("table"); t.innerHTML = html;
-  const reihen = Array.from(t.querySelectorAll("tbody tr")), aus = [];
-  reihen.forEach((tr, i)=>{
-    const k = tr.classList;
-    if(k.contains("spacer")) return;
-    if(k.contains("sec")){ aus.push({typ:"bereich", text:tr.textContent.trim()}); return; }
-    if(k.contains("leaf") && !detail) return;
-    const nums = Array.from(tr.querySelectorAll("td.num")).map(td=>({t:td.textContent.trim(), neg:td.classList.contains("neg")}));
-    const acct = tr.querySelector("td.acct"), lbl = tr.querySelector("td.lbl") || tr.children[1];
-    let typ = k.contains("leaf") ? "konto" : k.contains("grp") ? "position" : k.contains("tot") ? "total" : "summe";
-    if(typ === "position" && detail){ const n = reihen[i+1]; if(n && n.classList.contains("leaf")) typ = "gruppe"; }
-    aus.push({typ:typ, nr:acct ? acct.textContent.trim() : "", text:(lbl ? lbl.textContent : "").replace(/[▸▾]/g,"").trim(), w:nums[0], v:nums[1], d:nums[2]});
-  });
-  return aus;
-}
-function fsBericht(sum){
-  const K = fsKern(); const w = fsWahl(K), p = w.p, c = w.c, G = K.GROUPS, R = K.rep(p);
-  const status = $("#ex-status").value, detail = !sum;
-  const titel = R.basis === "YTD" ? "Interim statements as at "+fd(R.asOf) : "Annual statements "+p.slice(0,4);
-  const vgl = K.periodLabel(c), cur = K.CUR();
-  const fussText = (state.mandant+" · "+titel).replace(/["\\]/g,"");
-  const zelle = (x, kl) => !x ? `<td class="z ${kl||""}"></td>` : `<td class="z ${kl||""} ${x.neg?"neg":""}">${x.t === "0.00" ? "–" : esc(x.t)}</td>`;
-  const zahl = (n, kl) => `<td class="z ${kl||""} ${n < -0.005 ? "neg" : ""}">${Math.abs(n) < .005 ? "–" : K.fmt(n)}</td>`;
-  const tabelle = (zeilen, kopfW, kopfV) => `<table><thead><tr><th class="l" colspan="2"></th><th>${esc(kopfW)}</th>${kopfV?`<th>${esc(kopfV)}</th><th>Change</th>`:""}</tr></thead><tbody>`+
-    zeilen.map(x=> x.typ === "bereich" ? `<tr class="bereich"><td colspan="${kopfV?5:3}">${esc(x.text)}</td></tr>`
-      : `<tr class="${x.typ}"><td class="nr">${esc(x.nr||"")}</td><td class="t">${esc(x.text)}</td>${zelle(x.w)}${kopfV?zelle(x.v,"v")+zelle(x.d,"d"):""}</tr>`).join("")+`</tbody></table>`;
-  let rosette = ""; for(let j=0;j<10;j++) rosette += `<path d="${rosettenPfad(100,100,48+j*4.2,3.2,24,j*.45)}"/>`;
-  // key figures, all from the statement engine
-  const ta = K.nodeVal(G.TA,p), tl = K.nodeVal(G.TL,p), eq = K.nodeVal(G.EQ,p), cash = K.nodeVal(G.FONDS,p);
-  const taC = K.nodeVal(G.TA,c), tlC = K.nodeVal(G.TL,c), eqC = K.nodeVal(G.EQ,c), cashC = K.nodeVal(G.FONDS,c);
-  const ti = K.nodeVal(G.TI,p), np = K.nodeVal(G.NP,p), tiC = K.nodeVal(G.TI,c), npC = K.nodeVal(G.NP,c);
-  const pz2 = x => isFinite(x) ? (x*100).toFixed(1)+"%" : "–";
-  const cf = p !== c ? cfDirektZwischen(K, state, p, c) : null;
-  const kennz = [["Total assets", ta, taC], ["Total liabilities", tl, tlC], ["Net worth (equity)", eq, eqC], ["Cash and cash equivalents", cash, cashC],
-    ["Cash, equivalents and investments", cash+K.investedAt(p), cashC+K.investedAt(c)], ["Total income", ti, tiC], ["Total expenses", -(ti-np), -(tiC-npC)],
-    ["Result for the period", np, npC]];
-  const set = K.investments().filter(i=> i.include);
-  const summe = (q, accs) => K.r2(accs.reduce((s, a)=> s + K.accVal(q, a), 0));
-  const teile = [{id:"kennzahlen", t:"Key figures"}, {id:"bilanz", t:"Balance sheet"}, {id:"erfolg", t:"Income statement"}].concat(cf ? [{id:"geldfluss", t:"Cash flow statement"}] : []).concat(set.length ? [{id:"anlagen", t:"Investments"}] : []);
-  let erste = true; const seite = () => { const k = erste ? "rb-erste" : "rb-seite"; erste = false; return k; };
-  const sub = `<div class="rb-sub">${esc(state.mandant)}, ${esc(titel)}, compared with ${esc(vgl)}, amounts in ${esc(cur)}</div>`;
-  let h = `<style>
-    @page{size:A4;margin:18mm 17mm 20mm 17mm;@bottom-left{content:"${fussText}";font:8pt -apple-system,"Segoe UI",sans-serif;color:#6b7684}
-      @bottom-right{content:"Page " counter(page) " of " counter(pages);font:8pt -apple-system,"Segoe UI",sans-serif;color:#6b7684}}
-    #bericht{font-family:-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;color:#101C2B;font-size:9.5pt;line-height:1.4;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-    #bericht .rb-seite{page-break-before:always} #bericht .rb-erste{page-break-before:auto}
-    #bericht .rb-deck{height:245mm;display:flex;flex-direction:column;justify-content:center;position:relative}
-    #bericht .rb-deck svg{position:absolute;right:-6mm;top:8mm;width:96mm;height:96mm;opacity:.9}
-    #bericht .rb-deck .m{font-size:13pt;color:#48566A}
-    #bericht .rb-deck h1{font-size:30pt;font-weight:600;letter-spacing:-.02em;margin:4mm 0 2mm;line-height:1.1}
-    #bericht .rb-deck .u{font-size:11pt;color:#48566A}
-    #bericht .rb-deck .meta{margin-top:24mm;font-size:9pt;color:#48566A;line-height:1.7}
-    #bericht .rb-deck .inhalt{margin-top:10mm;font-size:10pt}
-    #bericht .rb-deck .inhalt div{padding:1.2mm 0;border-bottom:.3pt solid #DDE4EE;max-width:90mm}
-    #bericht h2{font-size:15pt;font-weight:600;margin:0 0 1mm;letter-spacing:-.01em}
-    #bericht .rb-sub{color:#48566A;font-size:9pt;margin-bottom:5mm}
-    #bericht table{width:100%;border-collapse:collapse}
-    #bericht th{font-size:8pt;font-weight:600;color:#8592A6;text-align:right;border-bottom:.6pt solid #101C2B;padding:1.4mm 1.8mm}
-    #bericht th:first-child,#bericht th.l{text-align:left}
-    #bericht td{padding:1.15mm 1.8mm;vertical-align:top}
-    #bericht td.z{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;width:27mm}
-    #bericht td.v{color:#48566A} #bericht td.d{color:#8592A6;width:22mm}
-    #bericht td.nr{width:13mm;color:#48566A}
-    #bericht .neg{color:#A6262D}
-    #bericht tr.bereich td{font-size:11pt;font-weight:600;padding-top:4mm;color:#101C2B}
-    #bericht tr.position td,#bericht tr.konto td{border-bottom:.3pt solid #E3E8EF}
-    #bericht tr.konto td{color:#48566A} #bericht tr.konto td.t{padding-left:5mm}
-    #bericht tr.gruppe td{font-weight:600;border-top:.4pt solid #B8C4D4}
-    #bericht tr.summe td{font-weight:600;border-top:.6pt solid #101C2B;background:#F3F6FB}
-    #bericht tr.total td{font-weight:700;border-top:.6pt solid #101C2B;border-bottom:1.8pt double #101C2B;font-size:10.5pt}
-    #bericht tr{page-break-inside:avoid}
-    #bericht .rb-h3{font-size:11pt;font-weight:600;margin:6mm 0 1mm;color:#101C2B}
-    #bericht .rb-hinweis{margin-top:4mm;font-size:8.5pt;color:#6E4C06;background:#FBF3E1;padding:2mm 3mm;border-radius:2mm}
-    #bericht .rb-wz{position:fixed;left:0;right:0;top:42%;text-align:center;font-size:96pt;font-weight:700;color:rgba(166,38,45,.07);transform:rotate(-24deg);pointer-events:none;letter-spacing:.06em}
-  </style>`;
-  if(status === "entwurf") h += `<div class="rb-wz">Draft</div>`;
-  h += `<section class="rb-deck ${seite()}"><svg viewBox="0 0 200 200" fill="none" stroke="#2F5E91" stroke-width=".5" opacity=".55">${rosette}</svg>
-    <div class="m">${esc(state.mandant)}</div><h1>${esc(titel)}</h1>
-    <div class="u">Compared with ${esc(vgl)}${sum ? ", summarized" : ""}</div>
-    <div class="inhalt">${teile.map(x=>`<div>${esc(x.t)}</div>`).join("")}</div>
-    <div class="meta">Currency ${esc(cur)}<br>${status === "entwurf" ? "Draft" : "Final version"}, created on ${fd(heute())}</div></section>`;
-  h += `<section class="${seite()}"><h2>Key figures</h2>${sub}<table><thead><tr><th class="l">Key figure</th><th>${esc(K.periodLabel(p))}</th><th>${esc(vgl)}</th><th>Change</th></tr></thead><tbody>`+
-    kennz.map(x=>`<tr class="position"><td>${esc(x[0])}</td>${zahl(x[1])}${zahl(x[2],"v")}${zahl(K.r2(x[1]-x[2]),"d")}</tr>`).join("")+
-    `<tr class="position"><td>Savings rate</td><td class="z">${pz2(ti ? np/ti : NaN)}</td><td class="z v">${pz2(tiC ? npC/tiC : NaN)}</td><td class="z d"></td></tr>`+
-    (cf ? `<tr class="bereich"><td colspan="4">Cash flow, ${esc(vgl)} → ${esc(K.periodLabel(p))}</td></tr>`+
-      [["Operating activities", cf.operating], ["Investing activities", cf.investing], ["Financing activities", cf.financing]].map(x=>`<tr class="position"><td>${x[0]}</td>${zahl(x[1])}<td></td><td></td></tr>`).join("")+
-      `<tr class="summe"><td>Net change in cash</td>${zahl(cf.change)}<td></td><td></td></tr>` : "")+`</tbody></table></section>`;
-  h += `<section class="${seite()}"><h2>Balance sheet</h2>${sub}${tabelle(fsZeilen(K.statementHTML(K.BS, p, c, $("#bi-null").checked, true, sum), detail), K.periodLabel(p), vgl)}`+
-    (K.nil(K.r2(ta - K.nodeVal(G.TLE,p))) ? "" : `<div class="rb-hinweis">Assets and liabilities differ by ${K.fmt(K.r2(ta - K.nodeVal(G.TLE,p)))}.</div>`)+`</section>`;
-  h += `<section class="${seite()}"><h2>Income statement</h2>${sub}${tabelle(fsZeilen(K.statementHTML(K.IS, p, c, $("#er-null").checked, true, sum), detail), K.periodLabel(p), vgl)}`+
-    (K.monthsOf(p) === K.monthsOf(c) ? "" : `<div class="rb-hinweis">${K.monthsOf(p)} months compared with ${K.monthsOf(c)}: not like for like.</div>`)+`</section>`;
-  if(cf){
-    const [fruehP, spaetP] = cf.rueckwaerts ? [p, c] : [c, p];
-    cf.vonDatum = K.rep(fruehP).asOf; cf.bisDatum = K.rep(spaetP).asOf;
-    h += `<section class="${seite()}"><h2>Cash flow statement</h2><div class="rb-sub">${esc(state.mandant)}, cash in and out from ${fd(cf.von)} to ${fd(cf.bis)}, direct method from the bookings, amounts in ${esc(cur)}</div>`+
-      tabelle(gfBerichtZeilen(K, cf, detail), K.periodLabel(fruehP)+" → "+K.periodLabel(spaetP), null)+
-      (cf.nichtGeld.length ? `<h3 class="rb-h3">Non-cash transactions</h3>`+tabelle(cf.nichtGeld.map(o=>({typ:"position", nr:o.konten.join(" · "), text:o.l, w:{t:K.fmt(o.betrag)}})), "Not in the cash flow", null) : "")+
-      (K.nil(cf.check) ? "" : `<div class="rb-hinweis">The cash flow differs from the change in cash by ${K.fmt(cf.check)}.</div>`)+`</section>`;
-  }
-  if(set.length){
-    const jahre = (K.S.forecast && K.S.forecast.years) || 10;
-    const zeilen = set.map(i=>{ const pay = summe(p, i.pay), adj = summe(p, i.adj), ser = K.buildSeries([i], jahre), last = ser[ser.length-1];
-      return {i:i, pay:pay, adj:adj, val:K.r2(pay+adj), prog: last ? last.val : NaN}; });
-    const tot = k => K.r2(zeilen.reduce((s, z)=> s + (isFinite(z[k]) ? z[k] : 0), 0));
-    h += `<section class="${seite()}"><h2>Investments</h2><div class="rb-sub">${esc(state.mandant)}, as at ${fd(R.asOf)}, amounts in ${esc(cur)}</div>
-      <table><thead><tr><th class="l">Investment</th><th>Paid in</th><th>Value adjustment</th><th>Value</th><th>Monthly pay-in</th><th>Return p.a.</th><th>In ${jahre} years</th></tr></thead><tbody>`+
-      zeilen.map(z=>`<tr class="position"><td>${esc(z.i.label)}</td>${zahl(z.pay)}${zahl(z.adj)}${zahl(z.val)}<td class="z v">${K.fmt(z.i.monthly||0)}</td><td class="z v">${((z.i.ret||0)).toFixed(1)}%</td>${zahl(z.prog,"v")}</tr>`).join("")+
-      `<tr class="total"><td>Total</td>${zahl(tot("pay"))}${zahl(tot("adj"))}${zahl(tot("val"))}<td></td><td></td>${zahl(tot("prog"))}</tr></tbody></table>
-      <div class="rb-sub" style="margin-top:3mm">The forecast compounds the monthly pay-in and the expected annual return of each investment. It is an assumption, not a promise.</div></section>`;
-  }
-  drucke(h, heute()+"_FINANCIAL STATEMENTS "+p+(sum ? " SUMMARY" : ""));
-}
-function fsExcelExport(){
-  const K = fsKern(); const w = fsWahl(K);
-  let blob;
-  try{ blob = K.buildXLSX(); }catch(err){ meldung("Could not build the workbook: "+(err.message||err), {fehler:true}); return; }
-  ablegen(blob, heute()+"_FINANCIAL STATEMENTS "+w.p+".xlsx");
-  schliesseDialog("#dlg-export");
-  meldung("Excel workbook created: "+K.periodLabel(w.p)+" compared with "+K.periodLabel(w.c)+".");
-}
-/* ---------- Controls on the investment and settings pages ------------ */
-$("#selInv").onchange = e=>{ if(!FS_AKTUELL) return; FS_AKTUELL.S.invView = e.target.value; fsSpeichern(true); };
-$("#yrsRange").addEventListener("input", e=>{ if(!FS_AKTUELL) return; FS_AKTUELL.S.forecast.years = +e.target.value;
-  e.target.style.setProperty("--fill", (+e.target.value/30)*100+"%"); FS_AKTUELL.renderInv(); });
-$("#yrsRange").addEventListener("change", ()=> fsSpeichern(false));
-$("#btnResetFc").onclick = ()=>{ if(FS_AKTUELL) FS_AKTUELL.resetForecast(); };
-$("#cfShowAll").onchange = render;
 
+/* ---------------------------------------------------------------- wiring */
+function initAnlagen(){
+  $('#inv-view').onchange = e => { if (!INV_K) return; INV_K.S.invView = e.target.value; invMerken(INV_K); renderAnlagenSeite(true); };
+  const rng = $('#inv-jahre');
+  /* the horizon follows the slider at once; the file setting is marked as changed when the slider is let go */
+  rng.addEventListener('input', e => { if (!INV_K) return; const years = INV_JAHRE = +e.target.value;
+    e.target.style.setProperty('--fill', (years / 30 * 100) + '%'); renderAnlagenSeite(false); });
+  rng.addEventListener('change', () => { if (INV_K) invMerken(INV_K); });
+  $('#inv-reset').onclick = async () => {
+    if (!INV_K) return;
+    if (!await frage('Reset the forecast?', 'Every monthly pay-in and return assumption goes back to the values derived from your reports, and the horizon back to 30 years.',
+      [{ text: 'Cancel', wert: false, art: 'leicht' }, { text: 'Reset', wert: true }])) return;
+    const K = INV_K, alt = window.confirm; window.confirm = () => true;     // the engine asks with confirm(); the kit dialog above already asked
+    try { K.S.touch = () => {}; K.S.toast = () => {}; K.resetForecast(); } finally { window.confirm = alt; }
+    invMerken(K); renderAnlagenSeite(true); toast('Forecast back to its starting values.', { type: 'success' });
+  };
+  $('#sa-neu').onclick = bestehendeAnlage;
+}

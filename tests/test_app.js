@@ -126,17 +126,20 @@ function harness(env){
                       { id: 'fa2', datum: '2026-02-15', beleg: '', text: 'Sofa', z: [['1510', 3200, 0], ['1020', 0, 3200]] });
     fx.anlagen = [{ id: 'a1', text: 'Laptop', konto: '1500', aufwand: '6800', datum: '2025-03-10', start: '2025-03', monate: 36, kosten: 2400, restwert: 0 },
                   { id: 'a2', text: 'Sofa', konto: '1510', aufwand: '6800', datum: '2026-02-15', start: '2026-02', monate: 60, kosten: 3200, restwert: 0 }];
+    /* an ETF savings plan with a valuation account (the template's English names) */
+    fx.buchungen.push({ id: 'etf1', datum: '2026-01-27', beleg: '', text: 'ETF savings plan', z: [['1400', 400, 0], ['1020', 0, 400]] },
+                      { id: 'etf2', datum: '2026-03-31', beleg: '', text: 'ETF valuation', z: [['1400.1', 12, 0], ['6955', 0, 12]] });
     fx.settings = { theme: 'glass' };
     await h3.openJson(JSON.stringify(fx), '2026-10-01_EVEN.json'); await sleep(120);
     for (let k = 0; k < 2; k++){ const q = $('#dlg-frage.on #fr-knoepfe button'); if (q){ q.click(); await sleep(60); } }
     check(d.documentElement.dataset.theme === 'glass', 'opening a file applies its look');
     const tab = async id => { $('#nav button[data-tab="' + id + '"]').click(); await sleep(60); };
     await tab('uebersicht');
-    const kpis = $$('#ue-leiste .kpi');
-    check(kpis.map(k => k.querySelector('.kpi__label').textContent).join('|') === 'Income|Expenses|Result|Equity ratio|Operating cash flow|Free cash flow', 'Overview: six KPI cards (' + kpis.length + ')');
+    const kpis = $$('#kpis .kpi');
+    check(kpis.map(k => k.querySelector('.kpi__label').textContent).join('|') === 'Income|Expenses|Result|Net worth|Equity ratio|Bookings', 'Overview: six KPI cards (' + kpis.length + ')');
     check(kpis.every(k => k.querySelector('svg.spark')), 'every KPI card has its line');
-    check(kpis.slice(0, 3).every(k => / vs 2025$/.test((k.querySelector('.delta') || {}).textContent || '')), 'income, expenses, result compared with 2025');
-    check(!$('#ue-leiste .delta--down'), 'no red deltas');
+    check(kpis.slice(0, 3).every(k => k.querySelector('.delta') && /vs 2025$/.test(k.querySelector('.kpi__foot').textContent)), 'income, expenses, result compared with 2025');
+    check(!$('#kpis .delta--down'), 'no red deltas');
     const ex = kpis[1] && kpis[1].querySelector('.delta');
     check(ex && (ex.textContent.charAt(0) === '+' ? ex.classList.contains('delta--flat') : ex.classList.contains('delta--up')), 'lower expenses count as better, higher as neutral');
     /* the look: never an unsaved change, written into the file */
@@ -155,7 +158,13 @@ function harness(env){
     check(!e3.w.Kit.isOn('ledger') && !/fx-ledger/.test(d.documentElement.innerHTML), 'no ledger lines');
     /* fixed assets: a donut that turns, one slice per asset */
     await tab('sachanlagen');
-    check($$('#saDonut .dreh .seg').length === 2 && $$('#saDonutListe .z').length === 2, 'fixed assets: donut with one slice per asset');
+    check($$('#sa-donut .ev-spin .seg').length === 2 && $$('#sa-donut .donut__list > div').length === 2, 'fixed assets: donut with one slice per asset');
+    check($$('#sa-register tbody tr.ev-klick').length === 2, 'fixed assets: both assets in the register');
+    /* investments detected from English account names: "net deposits" is no rent deposit, "unrealised" is the valuation */
+    await tab('fsmapping');
+    const etf = $$('#fs-inv tbody tr').find(tr => /^1400$/.test((tr.querySelector('td.nr') || {}).textContent || ''));
+    check(etf && etf.querySelector('input[type="checkbox"]').checked && etf.querySelector('select').value === '1400.1' && etf.querySelector('input.ev-cell').value === 'ETF portfolio',
+      'Statement settings: the ETF portfolio is detected, on the charts, with 1400.1 as its valuation account');
     e3.dom.window.close();
   }
   {
@@ -167,7 +176,7 @@ function harness(env){
     await h4.openJson(JSON.stringify(fx), 'long.json'); await sleep(120);
     for (let k = 0; k < 2; k++){ const q = $('#dlg-frage.on #fr-knoepfe button'); if (q){ q.click(); await sleep(60); } }
     $('#nav button[data-tab="ueberjahre"]').click(); await sleep(150);
-    const dots = d.querySelectorAll('#ovLine circle:not(.ovdot)').length;
+    const dots = d.querySelectorAll('#oj-linie circle.ev-dot').length;
     check(dots <= 1, 'net worth line with many months: no row of beads (' + dots + ' dots)');
     e4.dom.window.close();
   }
