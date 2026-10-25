@@ -438,7 +438,8 @@ delete window.THEME_FX;
    - effects: lifecycle of each theme's signature-effects module + the tool's own effects,
      switches remembered per device; whatever an effect adds is removed when the look changes
    - dropdowns: rounded, themed option menus on computers (native picker on the iPhone)
-   - folder: "Save to folder" (pick once, later saves go straight in), desktop Chrome/Edge
+   - folder: "Save to folder" (desktop Chrome/Edge): the app folder and its backup folder, picked once; save() writes
+     today's file into the app folder and moves the data files it replaces into the backup folder
    The tool keeps its own data logic; the kit never touches the data except settings.theme.
    ===================================================================== */
 window.Kit = (function(){
@@ -779,18 +780,105 @@ function initDropdowns(selector){
   });
 }
 
-/* ================================================================ Save to folder: pick once, later saves go straight in */
+/* ================================================================ Save to folder: the app folder and its backup folder
+   Picked once per site (desktop Chrome/Edge), e.g. the folder APPS/RISE: its "02 BACKUP" subfolder becomes the backup folder
+   by itself, or the tool lets you pick one. save() writes today's file into the app folder and moves the data files it
+   replaces into the backup folder (copy, read back, then remove): nothing is ever deleted. A browser only knows a
+   folder's name, never its path. write(name, blob) is the old one-folder save (starter, new tools): unchanged. */
 const folder = (function(){
   const can = typeof window.showDirectoryPicker === 'function' && !TOUCH;
-  let handle = null;
+  let handle = null, sicher = null, geladen = false;
   function idb(){ return new Promise((ok, no) => { const r = indexedDB.open('dl-' + cfg.app, 1); r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => ok(r.result); r.onerror = () => no(r.error); }); }
-  async function get(){ if (!can) return null; if (handle) return handle; try { const db = await idb(); handle = await new Promise(ok => { const t = db.transaction('kv').objectStore('kv').get('folder'); t.onsuccess = () => ok(t.result || null); t.onerror = () => ok(null); }); } catch (e){ handle = null; } return handle; }
+  async function lesen(k){ try { const db = await idb(); return await new Promise(ok => { const t = db.transaction('kv').objectStore('kv').get(k); t.onsuccess = () => ok(t.result || null); t.onerror = () => ok(null); }); } catch (e){ return null; } }
+  async function merken(k, v){ try { const db = await idb(), s = db.transaction('kv', 'readwrite').objectStore('kv'); if (v) s.put(v, k); else s.delete(k); } catch (e){} }
+  async function laden(){ if (geladen) return; geladen = true; if (!handle) handle = await lesen('folder'); if (!sicher) sicher = await lesen('backup'); }
+  async function get(){ if (!can) return null; await laden(); return handle; }
+  async function backup(){ if (!can) return null; await laden(); return sicher; }
+  /* the app folder; its "02 BACKUP" (folder standard) becomes the backup folder by itself. Returns the folder handle */
   async function choose(){
-    const opt = { id: 'dl-' + cfg.app, mode: 'readwrite' }, prev = await get();
-    if (prev) opt.startIn = prev;
-    handle = await window.showDirectoryPicker(opt);
-    try { const db = await idb(); db.transaction('kv', 'readwrite').objectStore('kv').put(handle, 'folder'); } catch (e){}
+    await laden();
+    const opt = { id: 'dl-' + cfg.app, mode: 'readwrite' }; if (handle) opt.startIn = handle;
+    const neu = await window.showDirectoryPicker(opt);
+    handle = neu; await merken('folder', neu);
+    try { const b = await neu.getDirectoryHandle('02 BACKUP'); sicher = b; await merken('backup', b); } catch (e){}
     return handle;
+  }
+  async function chooseBackup(){
+    await laden();
+    const opt = { id: 'dl-' + cfg.app + '-backup', mode: 'readwrite' }; if (sicher || handle) opt.startIn = sicher || handle;
+    const neu = await window.showDirectoryPicker(opt);
+    if (handle && neu.isSameEntry && await neu.isSameEntry(handle)) throw new Error('The backup folder has to be another folder than the app folder.');
+    sicher = neu; await merken('backup', neu);
+    return sicher;
+  }
+  async function forget(){ await laden(); handle = null; sicher = null; await merken('folder', null); await merken('backup', null); }
+  async function zugriff(h){
+    try { if (!h.queryPermission || await h.queryPermission({ mode: 'readwrite' }) === 'granted') return true; return (await h.requestPermission({ mode: 'readwrite' })) === 'granted'; }
+    catch (e){ return false; }
+  }
+  /* a folder that was moved, renamed or deleted since it was picked cannot be read any more */
+  async function erreichbar(h){ try { const it = h.values(); await it.next(); return true; } catch (e){ return !(e && e.name === 'NotFoundError'); } }
+  const lies = async h => (await h.getFile()).text();
+  async function schreib(dir, name, text){ const fh = await dir.getFileHandle(name, { create: true }), w = await fh.createWritable(); await w.write(text); await w.close(); return fh; }
+  /* moves one file from the app folder into the backup folder: copy, read back, then remove. Same name there with other
+     content: " 2", " 3" … is added; same content: the copy is already there */
+  async function verschieben(name, h){
+    const text = await lies(h); let ziel = name, i = 2;
+    for (;;){
+      let da = null; try { da = await sicher.getFileHandle(ziel); } catch (e){}
+      if (!da) break;
+      if (await lies(da) === text){ await handle.removeEntry(name); return ziel; }
+      ziel = name.replace(/(\.[^.]+)?$/, ' ' + (i++) + '$1');
+    }
+    const fh = await schreib(sicher, ziel, text);
+    if (await lies(fh) !== text) throw new Error('The backup copy of ' + name + ' did not read back the same. Nothing was moved.');
+    await handle.removeEntry(name);
+    return ziel;
+  }
+  /* o: { name: today's file, text, copyName, basis: the "saved" stamp this window started from,
+          isData(name): the data files a save replaces, stamp(text): a file's "saved" stamp, check(text): true when a
+          written file reads back right,
+          ask({ kind: 'newer' | 'today', files: [{ name, stamp }], folder }) → 'ersetzen' | 'neu' | null }
+     'newer': a data file in the app folder was saved after the version this window started from (the iPhone, another
+     window); 'today': today's file is there and is not the one this window has. 'ersetzen': it goes to the backup folder
+     and this version takes its place; 'neu': this version is saved under copyName and nothing is moved.
+     Returns null (no folder chosen) or { name, handle, folder, backup, moved: [[from, to]], noBackup }
+     or { cancel } / { missing: 'folder' | 'backup', folder } / { denied: 'folder' | 'backup', folder }. */
+  async function save(o){
+    const root = await get(); if (!root) return null;
+    if (!(await zugriff(root))) return { denied: 'folder', folder: root.name };
+    if (!(await erreichbar(root))) return { missing: 'folder', folder: root.name };
+    const bk = await backup();
+    if (bk){
+      if (!(await zugriff(bk))) return { denied: 'backup', folder: bk.name };
+      if (!(await erreichbar(bk))) return { missing: 'backup', folder: bk.name };
+    }
+    const daten = [];
+    for await (const h of root.values()){
+      if (h.kind !== 'file' || !o.isData(h.name)) continue;
+      let s = null; try { s = o.stamp(await lies(h)); } catch (e){}
+      daten.push({ name: h.name, stamp: s, handle: h });
+    }
+    const basis = o.basis || null;
+    const spaetere = daten.filter(d => d.stamp && d.stamp !== basis && (!basis || d.stamp > basis));
+    const heute = daten.find(d => d.name === o.name);
+    let ziel = o.name, wahl = 'ersetzen';
+    if (spaetere.length) wahl = await o.ask({ kind: 'newer', files: spaetere.map(d => ({ name: d.name, stamp: d.stamp })), folder: root.name });
+    else if (heute && heute.stamp !== basis) wahl = await o.ask({ kind: 'today', files: [{ name: heute.name, stamp: heute.stamp }], folder: root.name });
+    if (!wahl) return { cancel: true };
+    if (wahl === 'neu') ziel = o.copyName;
+    const moved = [];
+    /* today's file that is not this window's version goes to the backup first: never overwritten without a copy */
+    if (ziel === o.name && heute && heute.stamp !== basis){
+      if (!bk) throw new Error('Choose a backup folder first: ' + o.name + ' is in the app folder and would be replaced.');
+      moved.push([heute.name, await verschieben(heute.name, heute.handle)]);
+    }
+    const fh = await schreib(root, ziel, o.text);
+    if (!o.check(await lies(fh))) throw new Error(ziel + ' did not read back the same. The other files were left where they are.');
+    if (ziel === o.name && bk){
+      for (const d of daten) if (d.name !== ziel && !moved.some(m => m[0] === d.name)) moved.push([d.name, await verschieben(d.name, d.handle)]);
+    }
+    return { name: ziel, handle: fh, folder: root.name, backup: bk ? bk.name : null, moved, noBackup: !bk && daten.some(d => d.name !== ziel) };
   }
   /* writes name into the chosen folder; null when there is no folder or no access (the caller then falls back) */
   async function write(name, blob){
@@ -801,7 +889,7 @@ const folder = (function(){
       return { name, folder: f.name };
     } catch (e){ return null; }
   }
-  return { can, get, choose, write };
+  return { can, get, backup, choose, chooseBackup, forget, save, write };
 })();
 
 return { themeSwitch: segmentedThemes, lookButton, init, set, theme: () => current, themes: () => Object.keys(THEMES), meta: id => (THEMES[id || current] || {}).meta, isOn, setEffect, numberReveal,

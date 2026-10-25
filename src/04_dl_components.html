@@ -99,7 +99,7 @@ main.wrap{padding-bottom:96px}
 .btn{--h:var(--btn-h);position:relative;isolation:isolate;overflow:hidden;display:inline-flex;align-items:center;justify-content:center;gap:8px;height:var(--h);padding:0 var(--btn-pad);
   border-radius:var(--r-btn);border:var(--bw) solid transparent;font-size:var(--fs-btn);font-weight:var(--fw-btn);letter-spacing:var(--ls-btn);text-transform:var(--btn-case);white-space:nowrap;
   transition:transform var(--dur) var(--ease-spring),opacity var(--dur-fast)}
-.btn::after{content:"";position:absolute;inset:0;z-index:-1;background:var(--btn-hover-overlay);opacity:0;transition:opacity var(--dur-fast)}
+.btn::after{content:"";position:absolute;inset:0;z-index:-1;border-radius:inherit;background:var(--btn-hover-overlay);opacity:0;transition:opacity var(--dur-fast)}
 .btn:hover::after{opacity:1}
 .btn:active{transform:scale(var(--press))}
 .btn svg{flex:none}

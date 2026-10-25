@@ -132,6 +132,10 @@ table.band tbody tr:nth-child(even) td{background:var(--ev-band)}
 table.band tbody tr:hover td{background:var(--row-hover)}
 tr.klick{cursor:pointer}
 .tabelle{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -4px;padding:0 4px}
+/* Save to folder: one row per folder (name + Choose/Change) */
+.ordnerzeile{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-top:1px solid var(--hairline)}
+.ordnerzeile small{display:block;color:var(--text-3);font-size:12px;margin-bottom:2px}
+.ordnerzeile b{font-weight:600;color:var(--text);overflow-wrap:anywhere}
 .fuss{margin-top:16px;padding:10px 14px;border-radius:var(--r-control);font-size:13px;display:flex;gap:10px;align-items:center}
 .fuss.ok{background:var(--ev-ok-soft);color:var(--text)}
 .fuss.schlecht{background:var(--danger-soft);color:var(--danger)}

@@ -15,8 +15,30 @@ let ok = 0, bad = 0;
 const check = (cond, msg) => { if (cond) ok++; else { bad++; console.log('FAIL  ' + msg); } };
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-function boot(){
-  const errors = [], blobs = [], names = [];
+/* a small in-memory file system for Save to folder and the file pickers: files hold text, folders hold names → handles */
+const nichtDa = () => Object.assign(new Error('not found'), { name: 'NotFoundError' });
+function fakeFile(n, t){ const f = { kind: 'file', name: n, _t: t || '', getFile: async () => ({ name: n, text: async () => f._t }),
+  createWritable: async () => { let s = ''; return { write: async b => { s += String(b); }, close: async () => { f._t = s; } }; },
+  queryPermission: async () => 'granted', requestPermission: async () => 'granted' }; return f; }
+function fakeDir(n){ const kids = new Map(); const d = { kind: 'directory', name: n, kids, gone: false,
+  queryPermission: async () => 'granted', requestPermission: async () => 'granted', isSameEntry: async o => o === d,
+  getFileHandle: async (x, o) => { if (d.gone) throw nichtDa(); let f = kids.get(x); if (!f){ if (!(o && o.create)) throw nichtDa(); f = fakeFile(x); kids.set(x, f); } return f; },
+  getDirectoryHandle: async (x, o) => { let f = kids.get(x); if (!f){ if (!(o && o.create)) throw nichtDa(); f = fakeDir(x); kids.set(x, f); } return f; },
+  removeEntry: async x => { if (!kids.delete(x)) throw nichtDa(); },
+  values: () => { const it = kids.values(); return { next: async () => { if (d.gone) throw nichtDa(); return it.next(); }, [Symbol.asyncIterator](){ return this; } }; } }; return d; }
+/* jsdom has no IndexedDB: one in-memory store per database name (enough for EVEN's kv store and the kit's) */
+function fakeIDB(speicher){
+  return { open(name){ const req = {}; setTimeout(() => { const kv = speicher[name] = speicher[name] || new Map();
+    req.result = { createObjectStore(){}, transaction: () => ({ objectStore: () => ({
+      get(k){ const r = {}; setTimeout(() => { r.result = kv.get(k); if (r.onsuccess) r.onsuccess(); }); return r; },
+      put(v, k){ const r = {}; kv.set(k, JSON.parse(JSON.stringify(v))); setTimeout(() => { if (r.onsuccess) r.onsuccess(); }); return r; },
+      delete(k){ kv.delete(k); return {}; } }) }) };
+    if (req.onupgradeneeded) req.onupgradeneeded(); if (req.onsuccess) req.onsuccess(); }); return req; } };
+}
+
+function boot(o){
+  o = o || {};
+  const errors = [], blobs = [], names = [], sw = [];
   const vc = new VirtualConsole();
   /* jsdom cannot parse some modern CSS of the Design Lab kit: not an app error */
   vc.on('jsdomError', e => { if (!/Not implemented|Could not parse CSS stylesheet/.test(e.message)) errors.push(e.message); });
@@ -39,9 +61,19 @@ function boot(){
       w.scrollTo = () => {};
       w.HTMLAnchorElement.prototype.click = function(){ if (this.download) names.push(this.download); };
       w.HTMLElement.prototype.scrollIntoView = function(){};
+      /* the offline cache: registrations of sw.js are recorded (jsdom cannot run it) */
+      Object.defineProperty(w.navigator, 'serviceWorker', { configurable: true,
+        value: { controller: null, register: u => { sw.push(u); return Promise.resolve({}); }, addEventListener(){} } });
+      if (o.idb) w.indexedDB = fakeIDB(o.idb);
+      /* a computer with file pickers (o.oeffne: the file the open picker returns) and, with o.ordner, Save to folder */
+      if (o.oeffne){
+        w.showOpenFilePicker = async () => [o.oeffne];
+        w.showSaveFilePicker = async x => { const f = fakeFile(x.suggestedName); if (o.ordner) o.ordner.kids.set(f.name, f); return f; };
+      }
+      if (o.ordner) w.showDirectoryPicker = async () => o.ordner;
     }
   });
-  return { dom, w: dom.window, d: dom.window.document, errors, blobs, names };
+  return { dom, w: dom.window, d: dom.window.document, errors, blobs, names, sw };
 }
 /* jsdom's Blob has no text()/arrayBuffer(): read it with the window's FileReader */
 const readBlob = (env, b, bin) => new Promise((res, rej) => { const fr = new env.w.FileReader();
@@ -113,6 +145,8 @@ function harness(env){
     $('#speichern').click(); await sleep(400);
     const saved = JSON.parse((await h3.lastBlob()).text || '{}');
     check(saved.settings && saved.settings.theme === 'ember', 'the look is written into the data file');
+    check(/^2026-10-14T\d\d:\d\d:\d\d/.test(saved.saved || ''), 'the file carries the moment it was saved (' + saved.saved + ')');
+    check(e3.sw.includes('sw.js'), 'hosted: the offline cache (sw.js) is registered');
     check(e3.names[e3.names.length - 1] === '2026-10-14_EVEN.json', 'data file named YYYY-MM-DD_EVEN.json (got ' + e3.names[e3.names.length - 1] + ')');
     $('#dmenu [data-aktion="kopie"]').click(); await sleep(400);
     check(e3.names[e3.names.length - 1] === '2026-10-14_EVEN COPY.json', 'dated copy named YYYY-MM-DD_EVEN COPY.json (got ' + e3.names[e3.names.length - 1] + ')');
@@ -136,6 +170,86 @@ function harness(env){
     const dots = d.querySelectorAll('#ovLine circle:not(.ovdot)').length;
     check(dots <= 1, 'net worth line with many months: no row of beads (' + dots + ' dots)');
     e4.dom.window.close();
+  }
+
+  /* Safety round 25.10.2026: offline cache, saved elsewhere, Save to folder, working copy */
+  {
+    const swText = fs.readFileSync(path.join(ROOT, 'docs/sw.js'), 'utf8'), ver = /<meta name="build" content="([^"]+)">/.exec(HTML)[1];
+    check(swText.includes("const CACHE = 'even-" + ver + "'"), 'sw.js cache carries the build version ' + ver);
+    check(/k\.startsWith\('even-'\) && k !== CACHE/.test(swText), 'sw.js clears only its own caches (the origin is shared with CICO and RISE)');
+    const fxText = e => JSON.stringify(makeFixture(e.w.VORLAGE));
+    const frageTitel = e => e.d.getElementById('dlg-frage').classList.contains('on') ? e.d.getElementById('fr-titel').textContent : '';
+    const knopf = (e, t) => Array.from(e.d.querySelectorAll('#dlg-frage.on #fr-knoepfe button')).find(b => b.textContent === t);
+    const wegklicken = async e => { for (let k = 0; k < 2; k++){ const q = e.d.querySelector('#dlg-frage.on #fr-knoepfe button'); if (q){ q.click(); await sleep(60); } } };
+    const namen = dd => Array.from(dd.kids.keys()).sort().join('|');
+
+    /* 1. writing back into the opened file: saved elsewhere since it was opened → ask first */
+    const DISK = '2026-10-14_EVEN.json', datei = fakeFile(DISK);
+    const e5 = boot({ oeffne: datei }); await sleep(50);
+    datei._t = fxText(e5);
+    e5.d.getElementById('s-oeffnen').click(); await sleep(150); await wegklicken(e5);
+    check(e5.d.getElementById('dateiname').textContent === DISK, 'computer: the books open through the file picker');
+    const ANDERSWO = '2026-10-14T06:00:00.000Z', aufDisk = () => JSON.parse(datei._t).saved;
+    { const x = JSON.parse(datei._t); x.saved = ANDERSWO; datei._t = JSON.stringify(x); }
+    e5.d.getElementById('speichern').click(); await sleep(400);
+    check(frageTitel(e5) === 'Saved elsewhere since you opened it', 'saved elsewhere since it was opened: Save asks first');
+    if (knopf(e5, 'Cancel')) knopf(e5, 'Cancel').click(); await sleep(60);
+    check(aufDisk() === ANDERSWO, 'Cancel leaves the other version untouched');
+    e5.d.getElementById('speichern').click(); await sleep(400);
+    if (knopf(e5, 'Replace it')) knopf(e5, 'Replace it').click(); await sleep(400);
+    check(aufDisk() !== ANDERSWO && JSON.parse(datei._t).buchungen.length === JSON.parse(fxText(e5)).buchungen.length, 'Replace it writes this window’s version, every booking in it');
+    e5.d.getElementById('speichern').click(); await sleep(400);
+    check(!frageTitel(e5), 'the next save goes straight in (nothing saved elsewhere since)');
+
+    /* 2. Save to folder: today's file into the app folder, the one it replaces into 02 BACKUP, nothing deleted */
+    const app = fakeDir('EVEN'), bkp = fakeDir('02 BACKUP'); app.kids.set('02 BACKUP', bkp);
+    const gestern = fakeFile('2026-10-13_EVEN.json'); app.kids.set(gestern.name, gestern); app.kids.set('notes.md', fakeFile('notes.md', '# pointer'));
+    const e6 = boot({ oeffne: gestern, ordner: app }); await sleep(50);
+    { const x = JSON.parse(fxText(e6)); x.saved = '2026-10-13T19:00:00.000Z'; gestern._t = JSON.stringify(x); }
+    e6.d.getElementById('s-oeffnen').click(); await sleep(150); await wegklicken(e6);
+    check(!e6.d.getElementById('ordner').hidden, 'Save to folder button on a computer');
+    e6.d.getElementById('ordner').click(); await sleep(30);
+    e6.d.getElementById('od-app').click(); await sleep(200);
+    check(/Backups go to “02 BACKUP”/.test(e6.d.getElementById('meldungen').textContent), 'Save to folder: choosing the app folder finds its 02 BACKUP by itself');
+    if (knopf(e6, 'Save now')) knopf(e6, 'Save now').click(); await sleep(500);
+    check(namen(app) === '02 BACKUP|2026-10-14_EVEN.json|notes.md' && namen(bkp) === '2026-10-13_EVEN.json',
+      'today’s file goes into the app folder, the one it replaces into 02 BACKUP, nothing else is touched (' + namen(app) + ' / ' + namen(bkp) + ')');
+    e6.d.getElementById('speichern').click(); await sleep(500);
+    check(!frageTitel(e6) && namen(app) === '02 BACKUP|2026-10-14_EVEN.json|notes.md', 'saving again the same day goes straight into today’s file');
+    { const fh = app.kids.get('2026-10-14_EVEN.json'), x = JSON.parse(fh._t); x.saved = '2026-10-14T05:00:00.000Z'; fh._t = JSON.stringify(x); }
+    e6.d.getElementById('speichern').click(); await sleep(400);
+    check(frageTitel(e6) === 'Today’s file is already there', 'today’s file that is not this window’s version: Save asks first');
+    if (knopf(e6, 'Replace it')) knopf(e6, 'Replace it').click(); await sleep(500);
+    check(namen(bkp) === '2026-10-13_EVEN.json|2026-10-14_EVEN.json', 'Replace it: the old one goes to 02 BACKUP first, nothing is deleted (' + namen(bkp) + ')');
+    app.gone = true;
+    e6.d.getElementById('speichern').click(); await sleep(400);
+    check(/cannot be found any more/.test(e6.d.getElementById('meldungen').textContent) && frageTitel(e6) === 'Save to folder', 'a folder that was moved or renamed: EVEN says so and asks for it again');
+
+    /* 3. the working copy: unsaved changes survive a closed tab; the start screen offers them and asks before another file replaces them */
+    const speicher = {};
+    const e7 = boot({ idb: speicher }); await sleep(50);
+    /* opening first asks the (simulated) IndexedDB for a working copy: give it time before the file input is used */
+    e7.d.getElementById('s-oeffnen').click(); await sleep(150);
+    { const inp = e7.d.getElementById('dateiwahl'), t = fxText(e7);
+      Object.defineProperty(inp, 'files', { configurable: true, value: [{ name: '2026-10-14_EVEN.json', text: () => Promise.resolve(t) }] });
+      inp.onchange(); await sleep(120); }
+    await wegklicken(e7);
+    const m7 = e7.d.getElementById('mandant'); m7.value = 'Renamed person'; m7.dispatchEvent(new e7.w.Event('change', { bubbles: true })); await sleep(30);
+    Object.defineProperty(e7.d, 'hidden', { configurable: true, get: () => true });
+    e7.d.dispatchEvent(new e7.w.Event('visibilitychange')); await sleep(80);
+    const ak = speicher.buchhaltung && speicher.buchhaltung.get('arbeitskopie');
+    check(!!ak && ak.daten && ak.daten.mandant === 'Renamed person', 'going to the background keeps a working copy of the unsaved changes');
+    const e8 = boot({ idb: speicher }); await sleep(120);
+    const weiter = e8.d.getElementById('s-weiter');
+    check(!!weiter && /Restore unsaved changes/.test(weiter.textContent), 'the start screen offers the unsaved changes');
+    e8.d.getElementById('s-oeffnen').click(); await sleep(80);
+    check(frageTitel(e8) === 'Drop the unsaved changes?', 'opening another file over them asks first');
+    if (knopf(e8, 'Cancel')) knopf(e8, 'Cancel').click(); await sleep(40);
+    if (weiter) weiter.click(); await sleep(200); await wegklicken(e8);
+    check(e8.d.getElementById('mandant').value === 'Renamed person' && e8.d.getElementById('speichern').textContent.trim() === 'Save', 'Restore brings them back, Save blinks');
+    e8.d.getElementById('speichern').click(); await sleep(400);
+    check(!speicher.buchhaltung.get('arbeitskopie'), 'after a save the working copy is gone');
+    env.errors.push(...e5.errors, ...e6.errors, ...e7.errors, ...e8.errors);
   }
 
   check(env.errors.length === 0, 'no script errors' + (env.errors.length ? ': ' + env.errors.slice(0, 3).join(' | ') : ''));

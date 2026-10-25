@@ -42,6 +42,7 @@
       <div class="pruefstreifen" id="pruefstreifen" aria-live="polite"></div>
       <div class="knopfreihe">
         <button type="button" class="btn btn--secondary btn--sm save speichern" id="speichern"><span class="ring"></span><span class="dot"></span><span class="btn__label">Saved</span></button>
+        <button type="button" class="btn btn--ghost btn--sm btn--icon" id="ordner" hidden aria-label="Save to folder" title="Save to folder: today’s file into the app folder, the one it replaces into the backup folder"><span data-icon="ordner"></span></button>
         <details class="dmenu" id="dmenu">
           <summary aria-label="File and tools"><span data-icon="mehr"></span></summary>
           <div class="panel">
@@ -51,7 +52,7 @@
             <button type="button" data-aktion="speichern">Save</button>
             <button type="button" data-aktion="speichernAls">Save as …</button>
             <button type="button" data-aktion="kopie">Save dated copy …</button>
-            <button type="button" data-aktion="backup">Backup folder …</button>
+            <button type="button" data-aktion="ordner">Save to folder …</button>
             <hr>
             <button type="button" data-aktion="export">Export …</button>
             <button type="button" data-aktion="import">Import closing balances …</button>

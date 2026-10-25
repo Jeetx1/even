@@ -3,15 +3,17 @@
    ===================================================================== */
 const AKTIONEN = {
   oeffnen:oeffnen, neu:neu, speichern:()=>speichern(false,false), speichernAls:()=>speichern(true,false), kopie:()=>speichern(true,true),
-  export:oeffneExport, import:()=>oeffneImport(), csv:journalCsv, undo:rueckgaengig, redo:wiederholen, schliessen:schliessen, backup:backupWaehlen
+  export:oeffneExport, import:()=>oeffneImport(), csv:journalCsv, undo:rueckgaengig, redo:wiederholen, schliessen:schliessen, ordner:ordnerDialog
 };
 $$("#dmenu [data-aktion]").forEach(b=> b.onclick = ()=>{ $("#dmenu").open = false; AKTIONEN[b.dataset.aktion](); });
 document.addEventListener("click", e=>{
   const m = $("#dmenu"); if(m && m.open && !m.contains(e.target)) m.open = false;
   const s = $("#navleiste"); if(s && s.classList.contains("offen") && !s.contains(e.target) && !$("#menuknopf").contains(e.target)) s.classList.remove("offen");
 });
-$("#s-oeffnen").onclick = oeffnen; $("#s-neu").onclick = neu;
+$("#s-oeffnen").onclick = ()=> ohneArbeitskopie(oeffnen); $("#s-neu").onclick = ()=> ohneArbeitskopie(neu);
 $("#speichern").onclick = ()=> speichern(false,false);
+{ const o = $("#ordner"); o.hidden = !(FSA && Kit.folder.can); o.onclick = ordnerDialog; }
+{ const m = $('#dmenu [data-aktion="ordner"]'); if(m) m.hidden = !(FSA && Kit.folder.can); }
 $("#menuknopf").onclick = ()=> $("#navleiste").classList.toggle("offen");
 $("#mandant").addEventListener("change", e=>{ const v = e.target.value.trim() || "Untitled"; aendere("Name changed", ()=>{ state.mandant = v; }); });
 $("#periode").onchange = e=>{ state.ui.periode = e.target.value; render(); };
@@ -91,13 +93,24 @@ Kit.initDropdowns("select:not([multiple])");   // every dropdown gets the themed
 /* the tool's dialogs open and close by a class: tell the effects (Glass sinks the page back behind them) */
 if("MutationObserver" in window) $$(".hg").forEach(hgEl=>{ let war = hgEl.classList.contains("on");
   new MutationObserver(()=>{ const ist = hgEl.classList.contains("on"); if(ist !== war){ war = ist; document.dispatchEvent(new CustomEvent("dl:overlay", {detail:{open:ist}})); } }).observe(hgEl, {attributes:true, attributeFilter:["class"]}); });
-if(location.protocol === "https:") document.head.appendChild(Object.assign(document.createElement("link"), {rel:"manifest", href:"manifest.webmanifest"}));
+/* hosted (GitHub Pages): the web manifest and the offline cache (sw.js), so the app also opens without a connection.
+   Opened as a local file, nothing of this is loaded. */
+if(location.protocol === "https:"){
+  document.head.appendChild(Object.assign(document.createElement("link"), {rel:"manifest", href:"manifest.webmanifest"}));
+  if("serviceWorker" in navigator){
+    const hatteSchon = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.register("sw.js").catch(()=>{});
+    navigator.serviceWorker.addEventListener("controllerchange", ()=>{ if(hatteSchon) meldung("A new version is ready. Close and reopen EVEN to use it."); });
+  }
+  if(navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(()=>{});
+}
 { const bz = $("#buildzeile"); if(bz) bz.textContent = "EVEN \u00b7 build " + ((document.querySelector('meta[name="build"]') || {}).content || "local"); }
 setzeIcons();
 baueMarkeUndSiegel();
 $("#start-hinweis").textContent = FSA
-  ? "Saving writes straight back into the opened file. Ctrl+S saves, Ctrl+Z undoes."
+  ? "Saving writes straight back into the opened file, or with Save to folder into the app folder, the older file going to the backup folder. Ctrl+S saves, Ctrl+Z undoes."
   : "This browser cannot write back into the opened file. Saving creates a new file each time (on iPhone in Files). To save into the same file, use Chrome or Edge on a computer.";
+zeigeArbeitskopie();
 window.__buha = {get state(){ return state; }, E:E, anlageDialog:anlageDialog};
 })();
 </script>
