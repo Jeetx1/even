@@ -55,18 +55,26 @@ async function waehleDatei(input, accept){
     el.click();
   });
 }
+/* without the File System Access API (Safari, the iPhone, Firefox) a browser opens its file picker only inside the tap
+   itself, not after a question or a look into IndexedDB: the picker comes first, the questions (a working copy, unsaved
+   changes) after the choice */
+function oeffnenOhneFSA(){
+  const el = $("#dateiwahl");
+  el.value = "";
+  el.onchange = ()=>{
+    const file = el.files && el.files[0]; if(!file) return;
+    ohneArbeitskopie(async ()=>{ if(!(await verwerfenOk())) return; await uebernehmen(await file.text(), null, file.name); });
+  };
+  el.click();
+}
 async function oeffnen(){
+  if(!FSA){ oeffnenOhneFSA(); return; }
   if(!(await verwerfenOk())) return;
-  if(FSA){
-    try{
-      const [h] = await window.showOpenFilePicker({types:[{description:"Buchhaltung", accept:{"application/json":[".json"]}}], multiple:false});
-      const file = await h.getFile();
-      await uebernehmen(await file.text(), h, h.name);
-    }catch(err){ if(err && err.name !== "AbortError") meldung("Could not open: "+err.message, {fehler:true}); }
-  }else{
-    const file = await waehleDatei("#dateiwahl");
-    if(file) await uebernehmen(await file.text(), null, file.name);
-  }
+  try{
+    const [h] = await window.showOpenFilePicker({types:[{description:"Buchhaltung", accept:{"application/json":[".json"]}}], multiple:false});
+    const file = await h.getFile();
+    await uebernehmen(await file.text(), h, h.name);
+  }catch(err){ if(err && err.name !== "AbortError") meldung("Could not open: "+err.message, {fehler:true}); }
 }
 async function schreibrechte(h){
   if(!h || !h.queryPermission) return true;

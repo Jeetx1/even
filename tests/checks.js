@@ -182,6 +182,16 @@ async function runChecks(env, fixture){
   const sys = $$('#kt-system select');
   check(sys.length === 9 && sys[0].options.length >= E.konten(st).length && sys.every(s => s.value), 'system accounts: 9 dropdowns of the chart of accounts');
 
+  /* 7h. copying an earlier booking brings its text and accounts, never the amount; the amount field takes the focus */
+  await tab('buchen');
+  $('#bu-reset').click(); await sleep(10);
+  const rec = $('#bu-verlauf .ev-recent'); rec.click(); await sleep(30);
+  check($('#bu-betrag').value === '' && /^\d/.test($('#bu-soll').value) && /^\d/.test($('#bu-haben').value) && $('#bu-text').value.length > 0,
+    'Copy: text and accounts come along, the amount stays empty');
+  check(d.activeElement === $('#bu-betrag'), 'Copy: the cursor waits in the amount field');
+  $('#bu-reset').click(); await sleep(10);
+  check(!!$('#bu-letzte table.ev-buchungen'), 'Latest bookings use the fixed-column booking table (the amount keeps its place)');
+
   /* 8. save: the file has the new booking and nothing else changed */
   $('#speichern').click(); await sleep(120);
   x = await env.lastBlob();

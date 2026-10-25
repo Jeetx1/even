@@ -26,7 +26,8 @@ Kit.initDropdowns("select.select");
     /* the file */
     () => {
       $$("#dmenu [data-aktion]").forEach(b=> b.onclick = ()=>{ pickerZu(); AKTIONEN[b.dataset.aktion](); });
-      $("#s-oeffnen").onclick = ()=> ohneArbeitskopie(oeffnen); $("#s-neu").onclick = ()=> ohneArbeitskopie(neu);
+      // without the file pickers of Chrome/Edge, Open starts the browser's picker at once and asks after the choice
+      $("#s-oeffnen").onclick = ()=> FSA ? ohneArbeitskopie(oeffnen) : oeffnen(); $("#s-neu").onclick = ()=> ohneArbeitskopie(neu);
       $("#speichern").onclick = ()=> speichern(false,false);
       const o = $("#ordner"); o.hidden = !(FSA && Kit.folder.can); o.onclick = ordnerDialog;
       const m = $('#dmenu [data-aktion="ordner"]'); if(m) m.hidden = !(FSA && Kit.folder.can);

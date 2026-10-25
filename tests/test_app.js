@@ -251,8 +251,13 @@ function harness(env){
     const e8 = boot({ idb: speicher }); await sleep(120);
     const weiter = e8.d.getElementById('s-weiter');
     check(!!weiter && /Restore unsaved changes/.test(weiter.textContent), 'the start screen offers the unsaved changes');
-    e8.d.getElementById('s-oeffnen').click(); await sleep(80);
-    check(frageTitel(e8) === 'Drop the unsaved changes?', 'opening another file over them asks first');
+    /* without file pickers (Safari, iPhone) the browser's picker opens inside the tap; the question follows the choice */
+    e8.d.getElementById('s-oeffnen').click(); await sleep(20);
+    check(!frageTitel(e8), 'no file pickers: Open starts the browser picker at once, no question before it');
+    { const inp = e8.d.getElementById('dateiwahl'), t = fxText(e8);
+      Object.defineProperty(inp, 'files', { configurable: true, value: [{ name: 'other.json', text: () => Promise.resolve(t) }] });
+      inp.onchange(); await sleep(120); }
+    check(frageTitel(e8) === 'Drop the unsaved changes?', 'opening another file over them asks first (after the choice)');
     if (knopf(e8, 'Cancel')) knopf(e8, 'Cancel').click(); await sleep(40);
     if (weiter) weiter.click(); await sleep(200); await wegklicken(e8);
     check(e8.d.getElementById('mandant').value === 'Renamed person' && e8.d.getElementById('speichern').textContent.trim() === 'Save', 'Restore brings them back, Save blinks');

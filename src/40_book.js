@@ -769,7 +769,7 @@ function renderLetzte(){
   const box = $('#bu-letzte'); box.innerHTML = '';
   if (!liste.length){ box.appendChild(h('p', { class: 'note' }, ['Nothing booked yet.'])); return; }
   const tb = h('tbody'); liste.forEach(b => buchungsZeilen(b, { an: b.id === bearbeitet, frisch: b.id === frischId }).forEach(tr => tb.appendChild(tr)));
-  box.appendChild(h('div', { class: 'ev-scroll' }, [h('table', { class: 'table' }, [buchungsKopf(), tb])]));
+  box.appendChild(h('div', { class: 'ev-scroll' }, [h('table', { class: 'table ev-buchungen' }, [buchungsKopf(), tb])]));
 }
 
 /* ---------------------------------------------------------------- open, copy, book, delete */
@@ -786,10 +786,14 @@ function kopiereBuchung(id){
   const b = state.buchungen.find(x => x.id === id); if (!b) return;
   const datum = (entwurf && E.istDatum(entwurf.datum) && !bearbeitet) ? entwurf.datum : startDatum();
   entwurf = entwurfAusBuchung(urBuchung(b) || b); entwurf.datum = datum; delete entwurf.eb; delete entwurf.plan;
+  /* a copy brings the text and the accounts (split and lines included), never the amounts: they are typed anew */
+  Object.assign(entwurf, { betrag: '', fw: '', kurs: '' });
+  entwurf.split.forEach(x => Object.assign(x, { b: '', fw: '', kurs: '' }));
+  entwurf.z.forEach(z => Object.assign(z, { s: '', h: '', fw: '', kurs: '' }));
   bearbeitet = null; Object.assign(vt, { an: false, start: '', monate: '12', manuell: false });
   if (PAGE !== 'buchen') zeige('buchen'); else renderBuchen();
-  const t = $('#bu-text'); if (t){ t.focus(); if (t.select) t.select(); }
-  toast('Copied. Adjust the date and text, then book.');
+  const t = $(entwurf.modus === 'schnell' ? '#bu-betrag' : '#bu-text'); if (t){ t.focus(); if (t.select) t.select(); }
+  toast('Copied without the amount. Enter it, then book.');
 }
 function siegel(){
   if (!BEWEGUNG || !Kit.isOn('stamp')) return;

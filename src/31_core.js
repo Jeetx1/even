@@ -452,7 +452,7 @@ function planTag(b){
 function buchungsZeilen(b, o){
   o = o || {};
   const bf = buchungsform(b), fx = bf.einzel ? (fwText(bf.soll[0]) || fwText(bf.haben[0])) : '', tag = planTag(b);
-  const konto = nr => nr ? [nr + ' ', h('small', {}, [KN[nr] || 'unknown account'])] : [h('span', { class: 'chip ev-chip-sm' }, ['Split'])];
+  const konto = nr => nr ? [nr + ' ', h('small', { title: KN[nr] || null }, [KN[nr] || 'unknown account'])] : [h('span', { class: 'chip ev-chip-sm' }, ['Split'])];
   const oeffne = () => ladeEntwurf(b.id);
   const kopf = h('tr', { class: 'ev-klick' + (o.an ? ' is-current' : '') + (o.frisch ? ' is-new' : ''), 'data-edit': b.id, onclick: oeffne, title: 'Open in Book' }, [
     h('td', { class: 'd' }, [dateLong(b.datum)]),
@@ -516,7 +516,7 @@ function renderJournal(){
     const rows = by[k], sum = rows.reduce((s, b) => s + buchungsform(b).betrag, 0);
     const tb = h('tbody'); rows.forEach(b => buchungsZeilen(b, { an: b.id === bearbeitet }).forEach(tr => tb.appendChild(tr)));
     box.appendChild(monatsGruppe(k, sicht, [h('span', { class: 'group__meta' }, [rows.length + (rows.length === 1 ? ' booking' : ' bookings')]), h('span', { class: 'group__sum' }, [tsd(sum, 2)])],
-      h('div', { class: 'group__body ev-jo' }, [h('div', { class: 'ev-scroll' }, [h('table', { class: 'table' }, [buchungsKopf(), tb])])])));
+      h('div', { class: 'group__body ev-jo' }, [h('div', { class: 'ev-scroll' }, [h('table', { class: 'table ev-buchungen' }, [buchungsKopf(), tb])])])));
   });
 }
 

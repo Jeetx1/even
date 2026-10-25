@@ -464,6 +464,14 @@
 .ev-imp{display:grid;gap:10px}
 .ev-imp:empty{display:none}
 
+/* Journal and Latest bookings from 600 px: fixed columns, so the amount always keeps its place; a long account name ends
+   with … (the whole name on hover) */
+@media (min-width:600px){
+  .ev-jo .table.ev-buchungen{table-layout:fixed;min-width:560px}
+  .ev-buchungen th:nth-child(1){width:96px}
+  .ev-buchungen th:nth-child(5){width:112px}
+  .ev-buchungen td.k small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+}
 /* small phone: a booking becomes two lines (text + amount, then date · debit → credit) instead of a sideways-scrolling table */
 @media (max-width:599px){
   .ev-jo thead{display:none}
