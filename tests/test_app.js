@@ -263,7 +263,28 @@ function harness(env){
     check(e8.d.getElementById('mandant').value === 'Renamed person' && e8.d.getElementById('speichern').textContent.trim() === 'Save', 'Restore brings them back, Save blinks');
     e8.d.getElementById('speichern').click(); await sleep(400);
     check(!speicher.buchhaltung.get('arbeitskopie'), 'after a save the working copy is gone');
-    env.errors.push(...e5.errors, ...e6.errors, ...e7.errors, ...e8.errors);
+
+    /* 4. one save at a time (build .4), with Save to folder: Save clicked twice on a new day, a change made while saving */
+    const app9 = fakeDir('EVEN'), bkp9 = fakeDir('02 BACKUP'); app9.kids.set('02 BACKUP', bkp9);
+    const vortag = fakeFile('2026-10-13_EVEN.json'); app9.kids.set(vortag.name, vortag);
+    const e9 = boot({ oeffne: vortag, ordner: app9 }); await sleep(50);
+    { const x = JSON.parse(fxText(e9)); x.saved = '2026-10-13T19:00:00.000Z'; vortag._t = JSON.stringify(x); }
+    e9.d.getElementById('s-oeffnen').click(); await sleep(150); await wegklicken(e9);
+    e9.d.getElementById('ordner').click(); await sleep(30);
+    e9.d.getElementById('od-app').click(); await sleep(200);
+    if (knopf(e9, 'Close')) knopf(e9, 'Close').click(); await sleep(40);
+    const m9 = e9.d.getElementById('mandant'), nenne9 = t => { m9.value = t; m9.dispatchEvent(new e9.w.Event('change', { bubbles: true })); };
+    nenne9('Saved with a double click'); await sleep(30);
+    e9.d.getElementById('speichern').click(); e9.d.getElementById('speichern').click(); await sleep(500);
+    check(!/Not saved/.test(e9.d.getElementById('meldungen').textContent) && namen(app9) === '02 BACKUP|2026-10-14_EVEN.json' && namen(bkp9) === '2026-10-13_EVEN.json',
+      'Save clicked twice on a new day: saved once, the old file in 02 BACKUP, no false error (' + namen(app9) + ' / ' + namen(bkp9) + ')');
+    nenne9('Saved'); await sleep(30);
+    e9.d.getElementById('speichern').click(); nenne9('Changed while saving'); await sleep(500);
+    const heute9 = () => JSON.parse(app9.kids.get('2026-10-14_EVEN.json')._t).mandant;
+    check(heute9() === 'Saved' && e9.d.getElementById('speichern').textContent.trim() === 'Save', 'a change made while saving to the folder stays unsaved');
+    e9.d.getElementById('speichern').click(); await sleep(500);
+    check(!frageTitel(e9) && heute9() === 'Changed while saving' && e9.d.getElementById('speichern').textContent.trim() === 'Saved', 'the next save goes straight into today’s file, with the change');
+    env.errors.push(...e5.errors, ...e6.errors, ...e7.errors, ...e8.errors, ...e9.errors);
   }
 
   check(env.errors.length === 0, 'no script errors' + (env.errors.length ? ': ' + env.errors.slice(0, 3).join(' | ') : ''));

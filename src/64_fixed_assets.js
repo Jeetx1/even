@@ -411,13 +411,15 @@ function anlageDialog(o){
     if (fehler.length){ toast(fehler.join(' '), { type: 'error' }); return; }
     if (!vorhanden) n.id = 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
     if (o.buchung) n.buchung = o.buchung;
-    let anz = 0; const nextId = () => naechsteId();
+    let anz = 0; const neueIds = [], nextId = () => { const id = naechsteId(); neueIds.push(id); return id; };
     if (!aendere(vorhanden ? 'Asset changed' : 'Asset registered', () => {
       state.anlagen = (state.anlagen || []).filter(x => x.id !== n.id); state.anlagen.push(n);
       anz = E.anlageNeuBuchen(state, ix, n, state.jahr, nextId);
     })) return;
     dlg.zu(); saGewaehlt = n.id; render(false);
-    toast((vorhanden ? 'Saved: ' : 'Registered: ') + n.text + ', ' + anz + ' depreciation booking' + (anz === 1 ? '' : 's') + ' in ' + state.jahr + '.', { type: 'success', action: { text: 'Undo', fn: rueckgaengig } });
+    /* the years it booked: a later open year that already had depreciation is rebooked too */
+    const jahre = Array.from(new Set(state.buchungen.filter(b => neueIds.indexOf(b.id) >= 0).map(b => b.datum.slice(0, 4)))).sort();
+    toast((vorhanden ? 'Saved: ' : 'Registered: ') + n.text + ', ' + anz + ' depreciation booking' + (anz === 1 ? '' : 's') + ' in ' + (jahre.length > 1 ? jahre[0] + '–' + jahre[jahre.length - 1] : jahre[0] || state.jahr) + '.', { type: 'success', action: { text: 'Undo', fn: rueckgaengig } });
   };
   vorschau();
   setTimeout(() => { f.text.focus(); f.text.select(); }, 40);

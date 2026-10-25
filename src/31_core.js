@@ -444,6 +444,8 @@ const fwText = z => z && z[3] ? tsd(z[3], 2) + ' ' + ((ix.km[z[0]] || {}).wkz ||
 function planTag(b){
   if (b.eb) return 'Opening';
   if (!b.plan) return '';
+  if (b.plan.rolle === 'abschreibung') return 'Depreciation ' + (b.plan.ab && b.plan.ab !== b.plan.nr ? b.plan.ab + '–' : '') + b.plan.nr + '/' + b.plan.von;
+  if (b.plan.rolle === 'abgang') return 'Disposal';
   if (b.plan.rolle === 'basis') return 'Spread over ' + b.plan.monate + ' months';
   if (b.plan.rolle === 'uebertrag') return 'Spread, carried over';
   return b.plan.nr ? 'Spread ' + b.plan.nr + '/' + b.plan.von : 'Spread';

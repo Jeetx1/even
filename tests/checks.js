@@ -224,5 +224,58 @@ async function runChecks(env, fixture){
   check(sz.length === 10, 'the old spread is replaced, not added to (10 bookings, got ' + sz.length + ')');
   const uebertrag = sz.find(tb => /carried into 2027/.test(tb.textContent));
   check(uebertrag && /40\.00/.test(uebertrag.textContent), 'four months (40.00) carried into 2027');
+
+  /* 10. a fixed asset (build .4): its depreciation is labelled as depreciation, never as a spread, and editing it with
+     an earlier year selected rebooks the later open year instead of emptying it */
+  const knopfIm = t => $$('.overlay:not(.is-closing) .modal__actions button').find(b => b.textContent === t);
+  await tab('journal'); { const s = $('#jo-suche'); s.value = ''; fire(s, 'input'); await sleep(250); }
+  await tab('buchen');
+  $('#bu-reset').click(); await sleep(10);
+  tippe('#bu-datum', '10.03.2025'); tippe('#bu-text', 'Laptop from the tests'); tippe('#bu-betrag', '2400');
+  fire(tippe('#bu-soll', '1500'), 'keydown', { key: 'Tab' }); fire(tippe('#bu-haben', '1020'), 'keydown', { key: 'Tab' }); await sleep(10);
+  $('#bu-ok').click(); await sleep(700);
+  const registrieren = knopfIm('Register and book');
+  check(!!registrieren, 'a purchase on a fixed-asset account opens the register');
+  if (registrieren) registrieren.click(); await sleep(80);
+  const proJahr = () => w.__buha.state.buchungen.filter(b => b.plan && b.plan.rolle === 'abschreibung')
+    .reduce((m, b) => { const j = b.datum.slice(0, 4); m[j] = (m[j] || 0) + 1; return m; }, {});
+  check(proJahr()['2025'] === 10 && proJahr()['2026'] === 12, 'the register books the depreciation of 2025 and 2026 (' + JSON.stringify(proJahr()) + ')');
+  await tab('journal');
+  const abZeilen = () => $$('#jo-liste tr[data-edit]').filter(tr => /Laptop from the tests, depreciation/.test(tr.textContent));
+  check(abZeilen().length === 12 && abZeilen().every(tr => /Depreciation \d+\/36/.test(tr.textContent) && !/Spread/.test(tr.textContent)),
+    'Journal: depreciation is labelled “Depreciation n/36”, not as a spread');
+  await tab('buchen');
+  const pl = $$('#bu-plaene .ev-plan');
+  check(pl.length === 1 && /Annual subscription from the tests/.test(pl[0].textContent) && !/unde|of 0 months/.test($('#bu-plaene').textContent),
+    'Book: the spreads list shows the spread only, no fixed asset as a nameless spread');
+  await tab('journal'); abZeilen()[0].click(); await sleep(60);
+  check(/^Depreciation of “Laptop from the tests” \(month \d+ of 36\)/.test($('#bu-banner').textContent), 'Book: a depreciation booking says what it is (' + $('#bu-banner').textContent.slice(0, 50) + ' …)');
+  $('#bu-del').click(); await sleep(20);
+  const frageKnoepfe = $$('#dlg-frage.on #fr-knoepfe button');
+  check($('#fr-titel').textContent === 'Delete this depreciation booking?' && frageKnoepfe.length === 2 && frageKnoepfe[0].textContent === 'Cancel',
+    'deleting a depreciation booking asks about that one only, never about “the whole spread”');
+  if (frageKnoepfe[0]) frageKnoepfe[0].click(); await sleep(20);
+  $('#bu-reset').click(); await sleep(10);
+  const jahrWahl = $('#yearSel'); jahrWahl.value = '2025'; fire(jahrWahl, 'change'); await sleep(40);
+  await tab('sachanlagen');
+  const bearbeite = $$('#sa-register button').find(b => b.textContent === 'Edit');
+  if (bearbeite) bearbeite.click(); await sleep(60);
+  const neuBuchen = knopfIm('Save and rebook');
+  if (neuBuchen) neuBuchen.click(); await sleep(80);
+  check(!!neuBuchen && proJahr()['2025'] === 10 && proJahr()['2026'] === 12, 'editing the asset with 2025 selected rebooks 2026 too, nothing is lost (' + JSON.stringify(proJahr()) + ')');
+  jahrWahl.value = '2026'; fire(jahrWahl, 'change'); await sleep(40);
+
+  /* 11. one save at a time (build .4): a change made while a save is writing stays unsaved; Save twice in a row gives no error */
+  $$('#meldungen .toast').forEach(t => t.remove());
+  const mandantFeld = $('#mandant'), nenne = t => { mandantFeld.value = t; fire(mandantFeld, 'change'); };
+  nenne('Test Person, saved');
+  $('#speichern').click(); nenne('Test Person, changed while saving');
+  await sleep(400);
+  x = await env.lastBlob(); let datei = null; try { datei = JSON.parse(x.text); } catch (e) {}
+  check(datei && datei.mandant === 'Test Person, saved' && $('#speichern').textContent.trim() === 'Save', 'a change made while saving is not in the file and stays unsaved (Save keeps blinking)');
+  $('#speichern').click(); $('#speichern').click(); await sleep(400);
+  x = await env.lastBlob(); datei = null; try { datei = JSON.parse(x.text); } catch (e) {}
+  check(datei && datei.mandant === 'Test Person, changed while saving' && $('#speichern').textContent.trim() === 'Saved' && !/Not saved|Could not save/.test($('#meldungen').textContent),
+    'the next save puts it in; Save clicked twice in a row gives no error');
 }
 if (typeof module !== 'undefined') module.exports = runChecks;

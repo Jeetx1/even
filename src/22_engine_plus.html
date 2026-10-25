@@ -447,7 +447,8 @@ function plaene(state, ix){
   const ein = Object.assign({}, EINSTELLUNGEN, state.einstellungen||{});
   const m = {};
   (state.buchungen||[]).forEach(b=>{
-    if(!b.plan || !b.plan.id || b.plan.rolle === "uebertrag") return;
+    // the fixed-asset register's plans (depreciation, disposal) are no spreads
+    if(!b.plan || !b.plan.id || b.plan.rolle === "uebertrag" || b.plan.rolle === "abschreibung" || b.plan.rolle === "abgang") return;
     const p = m[b.plan.id] = m[b.plan.id] || {id:b.plan.id, text:"", total:0, aufgeloest:0, gebucht:0, monate:0, start:"", basisId:null};
     const abgr = b.z.reduce((a,z)=>{
       if(z[0] === ein.ara || (ein.araJahr && z[0] === ein.araJahr)) return r2(a + (z[1]||0) - (z[2]||0));
@@ -1380,8 +1381,10 @@ function anlagenFortfuehren(state, ix, J, nur){
 }
 /* after a change to an asset: its bookings in open years are rebuilt from the schedule, years up to `bisJahr` */
 function anlageNeuBuchen(state, ix, a, bisJahr, neueId){
-  const zu = new Set(state.abgeschlossen||[]);
-  state.buchungen = (state.buchungen||[]).filter(b=> !(b.plan && b.plan.id === a.id && b.plan.rolle === "abschreibung" && !zu.has(parseInt(b.datum.slice(0,4), 10))));
+  const zu = new Set(state.abgeschlossen||[]), weg = b=> b.plan && b.plan.id === a.id && b.plan.rolle === "abschreibung" && !zu.has(parseInt(b.datum.slice(0,4), 10));
+  // an open year after `bisJahr` that had bookings of this asset is rebuilt too, never just emptied
+  (state.buchungen||[]).forEach(b=>{ if(weg(b)) bisJahr = Math.max(bisJahr, parseInt(b.datum.slice(0,4), 10)); });
+  state.buchungen = (state.buchungen||[]).filter(b=> !weg(b));
   let n = 0;
   for(let J = parseInt(anlageNorm(a).ab.slice(0,4), 10); J <= bisJahr; J++){
     if(zu.has(J)) continue;

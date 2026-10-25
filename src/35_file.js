@@ -1,6 +1,7 @@
 /* =====================================================================
    THE FILE: open, save (back into the file, as a new file, a dated copy, to the app folder), the working copy of unsaved
-   changes, a new file, close. Carried over unchanged from the app; only the elements it touches are the new ones.
+   changes, a new file, close. Carried over from the app; only the elements it touches are the new ones. Since build
+   2026-10-25.4 one save runs at a time, and a change made while a save is writing stays unsaved.
    ===================================================================== */
 // Everything in the file is written back, including data this version does not use itself.
 function dateiObjekt(){
@@ -12,7 +13,9 @@ function dateiObjekt(){
 function vorschlag(mitDatum){ return heute()+"_EVEN"+(mitDatum ? " COPY" : "")+".json"; }
 /* a file opened under an old name (…_ACCOUNTING ….json) is not written back into: the picker offers the new name once */
 const neuerName = n => /_EVEN\.json$/i.test(n || "");
-function markiere(){ dirty = true; const b = $("#speichern"); if(b){ b.classList.add("schmutzig", "is-dirty"); $(".btn__label", b).textContent = "Save"; b.title = "Unsaved changes (Ctrl/Cmd + S)"; } arbeitskopie(); }
+/* every change counts, so a save knows whether something changed while it was still writing */
+let aenderungen = 0;
+function markiere(){ dirty = true; aenderungen++; const b = $("#speichern"); if(b){ b.classList.add("schmutzig", "is-dirty"); $(".btn__label", b).textContent = "Save"; b.title = "Unsaved changes (Ctrl/Cmd + S)"; } arbeitskopie(); }
 function sauber(){ dirty = false; arbeitskopieWeg(); const b = $("#speichern"); if(b){ b.classList.remove("schmutzig", "is-dirty"); $(".btn__label", b).textContent = "Saved"; b.title = "Everything is saved"; }
   if(geladen) document.dispatchEvent(new CustomEvent("dl:saved")); zeigeDateiname(); }
 function zeigeDateiname(){
@@ -87,9 +90,24 @@ function ablegen(blob, name){
   document.body.appendChild(a); a.click();
   setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 800);
 }
+/* one save at a time: a second Save while one is still writing (a double click, Ctrl+S again) is ignored */
+let speichertGerade = false;
 async function speichern(alsNeu, mitDatum){
-  if(!geladen) return false;
+  if(!geladen || speichertGerade) return false;
+  speichertGerade = true;
+  try{ return await speichernJetzt(alsNeu, mitDatum); }
+  finally{ speichertGerade = false; }
+}
+/* written: clean, unless something changed while it was writing. That change is not in the file, so it stays unsaved
+   (the button keeps blinking, the working copy is kept with the new stamp) */
+function gespeichert(stand){
+  if(aenderungen === stand){ sauber(); return; }
+  zeigeDateiname(); arbeitskopie();
+  meldung("A change made while saving is not in the file yet. Save again to keep it.");
+}
+async function speichernJetzt(alsNeu, mitDatum){
   if(istBeispiel && !mitDatum) alsNeu = true;
+  const stand = aenderungen;
   // the file carries the moment it was saved: the next save compares it with the file on disk (fremdGespeichert)
   const vorher = state.saved, zurueckSetzen = ()=>{ state.saved = vorher; };
   state.saved = new Date().toISOString();
@@ -122,9 +140,10 @@ async function speichern(alsNeu, mitDatum){
       meldung(r.missing ? "“"+r.folder+"” cannot be found any more. Moved or renamed? Choose it again." : "No access to “"+r.folder+"”. Choose it again.", {fehler:true});
       ordnerDialog(); return false;
     }
-    handle = r.handle; dateiname = r.name; istBeispiel = false; basis = state.saved; sauber();
+    handle = r.handle; dateiname = r.name; istBeispiel = false; basis = state.saved;
     meldung("Saved to "+r.folder+": "+r.name+(r.moved.length ? ". Moved to "+r.backup+": "+r.moved.map(m=>m[0]).join(", ") : "")+
       (r.noBackup ? ". Choose a backup folder to move the older files." : ""));
+    gespeichert(stand);
     return true;
   }
   if(FSA){
@@ -141,14 +160,15 @@ async function speichern(alsNeu, mitDatum){
       const strom = await h.createWritable();
       await strom.write(text); await strom.close();
       if(mitDatum){ zurueckSetzen(); meldung("Dated copy saved: "+h.name); }
-      else { handle = h; dateiname = h.name; istBeispiel = false; basis = state.saved; sauber(); meldung("Saved to "+h.name); }
+      else { handle = h; dateiname = h.name; istBeispiel = false; basis = state.saved; meldung("Saved to "+h.name); gespeichert(stand); }
       return true;
     }catch(err){ zurueckSetzen(); if(err && err.name !== "AbortError") meldung("Could not save: "+err.message, {fehler:true}); return false; }
   }
   const name = vorschlag(mitDatum);
   ablegen(new Blob([text],{type:"application/json;charset=utf-8"}), name);
-  if(!mitDatum){ dateiname = name; istBeispiel = false; basis = state.saved; sauber(); } else zurueckSetzen();
+  if(!mitDatum){ dateiname = name; istBeispiel = false; basis = state.saved; } else zurueckSetzen();
   meldung(mitDatum ? "Dated copy downloaded: "+name : "Downloaded as "+name);
+  if(!mitDatum) gespeichert(stand);
   return true;
 }
 

@@ -465,6 +465,13 @@ function renderBuchen(){
   let banner = '';
   if (zu) banner = 'This booking belongs to the closed year ' + String(b.datum).slice(0, 4) + '. It can be viewed and copied, not changed.';
   else if (b && b.eb) banner = 'This is the opening balance. Changes affect every opening balance of the year.';
+  else if (b && b.plan && (b.plan.rolle === 'abschreibung' || b.plan.rolle === 'abgang')){
+    /* the fixed-asset register's bookings: depreciation for one month (or a range, booked yearly) and the disposal */
+    const a = (state.anlagen || []).find(x => x.id === b.plan.id), name = a ? '“' + a.text + '”' : 'a fixed asset';
+    banner = b.plan.rolle === 'abgang' ? 'Disposal of ' + name + ', booked by the fixed-asset register. Changes only affect this booking.'
+      : 'Depreciation of ' + name + ' (' + (b.plan.ab && b.plan.ab !== b.plan.nr ? 'months ' + b.plan.ab + '–' : 'month ') + b.plan.nr + ' of ' + b.plan.von + '), booked by the fixed-asset register. Changes only affect this booking; the schedule is changed under Fixed assets.';
+  }
+  else if (b && b.plan && b.plan.rolle === 'uebertrag') banner = 'Carry-over of a spread into the next year. Changes only affect this booking.';
   else if (b && b.plan && b.plan.rolle === 'aufloesung') banner = 'Part of a spread (month ' + b.plan.nr + ' of ' + b.plan.von + '). Changes only affect this booking.';
   else if (b && b.plan && respread()){
     const n = state.buchungen.filter(x => x.plan && x.plan.id === b.plan.id && x.id !== b.id).length, st = String(b.plan.start || b.datum);
@@ -825,12 +832,19 @@ async function loeschen(){
   if (!bearbeitet) return;
   const b = state.buchungen.find(x => x.id === bearbeitet); if (!b) return;
   let wahl;
-  if (b.plan){
+  if (b.plan && (b.plan.rolle === 'abschreibung' || b.plan.rolle === 'abgang')){
+    /* a booking of the fixed-asset register: only this one; the asset itself is ended or removed under Fixed assets */
+    const a = (state.anlagen || []).find(x => x.id === b.plan.id), ab = b.plan.rolle === 'abgang';
+    wahl = await frage(ab ? 'Delete this disposal booking?' : 'Delete this depreciation booking?',
+      esc(b.text || 'No text') + ', ' + dateLong(b.datum) + ', ' + tsd(buchungsform(b).betrag, 2) + '. It belongs to ' + (a ? '“' + esc(a.text) + '”' : 'a fixed asset') + ' in the register under Fixed assets'
+        + (ab ? ', which stays marked as disposed of.' : ': its month becomes open again, and Book offers to book it.') + ' Undo brings it back.',
+      [{ text: 'Cancel', wert: null, art: 'leicht' }, { text: 'Delete', wert: 'eine', art: 'gefahr' }]);
+  } else if (b.plan){
     const alle = state.buchungen.filter(x => x.plan && x.plan.id === b.plan.id);
     wahl = await frage('Delete a booking of a spread?', 'This booking belongs to a spread of ' + alle.length + ' bookings.',
       [{ text: 'Cancel', wert: null, art: 'leicht' }, { text: 'Delete only this one', wert: 'eine', art: 'leicht' }, { text: 'Delete the whole spread', wert: 'alle', art: 'gefahr' }]);
   } else {
-    wahl = await frage('Delete this booking?', (b.text || 'No text') + ', ' + dateLong(b.datum) + ', ' + tsd(buchungsform(b).betrag, 2) + '. Undo brings it back.',
+    wahl = await frage('Delete this booking?', esc(b.text || 'No text') + ', ' + dateLong(b.datum) + ', ' + tsd(buchungsform(b).betrag, 2) + '. Undo brings it back.',
       [{ text: 'Cancel', wert: null, art: 'leicht' }, { text: 'Delete', wert: 'eine', art: 'gefahr' }]);
   }
   if (!wahl) return;

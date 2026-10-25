@@ -43,7 +43,7 @@ Kit.initDropdowns("select.select");
       const mod = e.ctrlKey || e.metaKey, imFeld = /^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement || {}).tagName || ""), k = (e.key || "").toLowerCase();
       if(e.key === "Escape"){ navZu(); pickerZu(); return; }
       if(!geladen || frageOffen) return;
-      if(mod && k === "s"){ e.preventDefault(); speichern(e.shiftKey, false); }
+      if(mod && k === "s"){ e.preventDefault(); if(!e.repeat) speichern(e.shiftKey, false); }      // a held key saves once
       else if(mod && e.key === "Enter" && PAGE === "buchen"){ e.preventDefault(); enter(); }
       else if(mod && !imFeld && k === "z" && !e.shiftKey){ e.preventDefault(); rueckgaengig(); }
       else if(mod && !imFeld && (k === "y" || (k === "z" && e.shiftKey))){ e.preventDefault(); wiederholen(); }
