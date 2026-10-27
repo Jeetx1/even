@@ -206,8 +206,8 @@ function harness(env){
     check(zwischen === vorher && e.gescrollt.length === vorher + 1, 'iPad: leaving the last field places the page again, moving between fields does not');
     const css = Array.from(d.querySelectorAll('style')).map(s => s.textContent).join('\n');
     const ios = (css.match(/@supports \(-webkit-touch-callout:none\)\{[\s\S]*?\n\}/) || [''])[0];
-    check(/html\{scroll-behavior:auto;scroll-padding-top:0\}/.test(ios) && /\.ev,\.ev-start\{overflow-x:clip\}/.test(ios) && /\.ev-side\{height:100dvh\}/.test(ios) && /font-size:16px/.test(ios),
-      'iPad: the iOS-only styles (no smooth scroll or top offset, clip on the shell, 100dvh, 16px fields) are in the page');
+    check(/html\{scroll-behavior:auto;scroll-padding-top:0\}/.test(ios) && /\.ev,\.ev-start\{overflow-x:clip\}/.test(ios) && /\.ev-side\{position:fixed;[^}]*width:248px/.test(ios) && /\.ev\{grid-template-columns:minmax\(0,1fr\);padding-left:248px\}/.test(ios) && /font-size:16px/.test(ios),
+      'iPad: the iOS-only styles (no smooth scroll or top offset, clip on the shell, fixed side navigation, 16px fields) are in the page');
     e.dom.window.close();
   }
   {
