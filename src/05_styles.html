@@ -581,6 +581,19 @@
 .ev-filemenu[hidden]{display:none}
 /* native option lists in the look's colours */
 select option,select optgroup{background:var(--surface-solid);color:var(--text)}
+/* iPhone and iPad (-webkit-touch-callout: WebKit on iOS only): typing made the page jump until the app was switched.
+   Off here what iOS handles badly: overflow hidden on the page (it moves to the shell as clip, which keeps the side
+   navigation sticky), smooth scrolling with a top offset (iOS scrolls to the caret on every key), full-height boxes in
+   100vh (taller than the screen; dvh is what is visible); form text 16px also with a keyboard and trackpad attached, so
+   iOS never zooms into a field. EVEN first (27.10.2026); into the Design Lab kit for CICO and RISE once confirmed */
+@supports (-webkit-touch-callout:none){
+  html{scroll-behavior:auto;scroll-padding-top:0}
+  body{overflow-x:visible}
+  .ev,.ev-start{overflow-x:clip}
+  body,.app,.ev,.ev-start{min-height:100dvh}
+  @media (min-width:900px){ .ev-side{height:100dvh} }
+  .input,.select,.textarea{font-size:16px}
+}
 /* printing (the PDF reports): only the report */
 #bericht{display:none}
 @media print{

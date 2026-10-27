@@ -162,6 +162,18 @@ async function runChecks(env, fixture){
   check(!$('#vt-panel').hidden && !tabEv2.defaultPrevented, 'with the spread switched on, Tab from credit moves on to its fields');
   tabEv2 = tabAus('#vt-monate'); await sleep(10);
   check(tabEv2.defaultPrevented && d.activeElement === $('#bu-ok'), 'Tab from the spread’s last field goes to Book');
+  /* and on through the card's buttons, round to the first field; Shift+Tab back */
+  tabEv2 = tabAus('#bu-ok');
+  check(tabEv2.defaultPrevented && d.activeElement === $('#bu-reset'), 'Tab from Book goes to Clear (Copy and Delete are hidden for a new booking)');
+  tabEv2 = tabAus('#bu-reset');
+  check(tabEv2.defaultPrevented && d.activeElement === $('#bu-datum'), 'Tab from the card’s last button goes round to Date');
+  $('#bu-reset').focus(); tabEv2 = new w.KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true }); $('#bu-reset').dispatchEvent(tabEv2);
+  check(tabEv2.defaultPrevented && d.activeElement === $('#bu-ok'), 'Shift+Tab from Clear goes back to Book');
+  $('#bu-reset').click(); await sleep(10);
+  $('#bu-letzte tr[data-edit]').click(); await sleep(20);
+  const reihe = [];
+  for (let n = 0, el = $('#bu-ok'); n < 4 && el; n++){ reihe.push(el.id); tabAus('#' + el.id); el = d.activeElement; if (el === $('#bu-datum')){ reihe.push(el.id); break; } }
+  check(reihe.join(' ') === 'bu-ok bu-kopie bu-reset bu-del bu-datum', 'editing a booking: Tab goes Book, Copy, Clear, Delete, then Date (' + reihe.join(' ') + ')');
   $('#bu-reset').click(); await sleep(10);
 
   /* 7f. the export dialog: the ledger of every account, the statements report with the app icon */

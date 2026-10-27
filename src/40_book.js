@@ -917,16 +917,19 @@ function initBuchen(){
   hauptKonto('#bu-haben', 'haben');
   textVorschlag($('#bu-text'));
   ['#bu-datum', '#bu-text', '#bu-betrag'].forEach(s => $(s).addEventListener('keydown', e => { if (e.key === 'Enter' && !e.defaultPrevented){ e.preventDefault(); enter(); } }));
-  /* Tab out of the form's last field goes to Book. Safari (iPad, iPhone, Mac) skips buttons on Tab, so the focus left
-     the form for the recent bookings far down the page and scrolled there */
+  /* Tab stays in the booking card: out of the last field to Book, then through the card's buttons (Copy, Clear, Delete
+     where shown) and round to the first field; Shift+Tab goes back the same way. Safari (iPad, iPhone, Mac) skips buttons
+     on Tab, so the focus left the card for the recent bookings far down the page and scrolled there */
   const maske = $('#maske');
   const sichtbar = el => { for (let x = el; x && x !== maske; x = x.parentElement) if (x.hidden || getComputedStyle(x).display === 'none') return false; return true; };
   maske.addEventListener('keydown', e => {
-    if (e.key !== 'Tab' || e.shiftKey || e.defaultPrevented || !e.target.matches('input, select, textarea')) return;
+    if (e.key !== 'Tab' || e.defaultPrevented) return;
     const felder = $$('input:not([type="hidden"]), select, textarea', maske).filter(el => el.tabIndex >= 0 && !el.disabled && sichtbar(el));
-    if (felder[felder.length - 1] !== e.target) return;
-    e.preventDefault();
-    const ok = $('#bu-ok'); try { ok.focus({ preventScroll: true }); } catch (er){ ok.focus(); }
+    const knoepfe = $$('.ev-actions .btn', maske).filter(el => !el.disabled && sichtbar(el));
+    const zu = el => { if (!el) return; e.preventDefault(); el.focus(); };
+    const k = knoepfe.indexOf(e.target);
+    if (k >= 0) zu(e.shiftKey ? (k > 0 ? knoepfe[k - 1] : felder[felder.length - 1]) : (k < knoepfe.length - 1 ? knoepfe[k + 1] : felder[0]));
+    else if (!e.shiftKey && e.target === felder[felder.length - 1]) zu(knoepfe[0]);
   });
   const setzeDatum = iso => { entwurf.datum = iso; entwurf.datumRoh = ''; $('#bu-datum').value = dateLong(iso); aktualisiere(); };
   $('#bu-heute').onclick = () => setzeDatum(heute());

@@ -51,6 +51,12 @@ Kit.initDropdowns("select.select");
     /* the charts have the size of their box: drawn again when the width changes */
     () => { let bw = window.innerWidth, t = null; window.addEventListener("resize", () => { clearTimeout(t); t = setTimeout(() => { if(window.innerWidth === bw) return; bw = window.innerWidth;
       if(geladen && ["uebersicht","hauptbuch","ueberjahre","anlagen","sachanlagen"].indexOf(PAGE) >= 0) render(false); }, 200); }); },
+    /* iPhone and iPad: when the keyboard goes away, iOS can leave the page shifted until the app is switched; scrolling
+       to where it already is makes it place the page again (the CSS half of this fix is at the end of 05_styles) */
+    () => { if(!(window.CSS && CSS.supports && CSS.supports("-webkit-touch-callout", "none"))) return;
+      document.addEventListener("focusout", () => setTimeout(() => {
+        const a = document.activeElement; if(a && a.matches && a.matches("input, select, textarea")) return;
+        window.scrollTo(window.scrollX, window.scrollY); }, 120)); },
     /* hosted (GitHub Pages): the web manifest and the offline cache (sw.js), so the app also opens without a connection.
        Opened as a local file, nothing of this is loaded. */
     () => { if(location.protocol !== "https:") return;
