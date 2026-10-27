@@ -111,7 +111,7 @@ async function runChecks(env, fixture){
   /* 7b. undo and redo from the file menu; the menu opens and closes at its button */
   const anzahl = () => w.__buha.state.buchungen.length, vorher = anzahl();
   $('#fileMenu').click(); await sleep(10);
-  check(!$('#dmenu').hidden && $$('#dmenu [data-aktion]:not([data-aktion="diag"])').length === 12, 'the file menu opens with its 12 entries');
+  check(!$('#dmenu').hidden && $$('#dmenu [data-aktion]').length === 12, 'the file menu opens with its 12 entries');
   $('#fileMenu').click(); await sleep(10);
   check($('#dmenu').hidden, 'a second click closes it');
   $('#dmenu [data-aktion="undo"]').click(); await sleep(30);

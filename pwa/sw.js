@@ -2,7 +2,7 @@
    connection); in the background the network is asked for a newer copy, which is used from the next start on.
    The cache name carries the build version (same as <meta name="build"> in src/01_head.html): a new build = a new cache.
    All Design Lab apps share the origin jeetx1.github.io and with it one cache storage: only EVEN's own caches are cleared. */
-const CACHE = 'even-2026-10-27.4';
+const CACHE = 'even-2026-10-27.5';
 const FILES = ['./', './index.html', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png'];
 self.addEventListener('install', e => {
   /* cache: 'reload' skips the browser's HTTP cache, so a new build never caches the previous page */

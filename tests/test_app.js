@@ -38,7 +38,7 @@ function fakeIDB(speicher){
 
 function boot(o){
   o = o || {};
-  const errors = [], blobs = [], names = [], sw = [], geteilt = [], gescrollt = [];
+  const errors = [], blobs = [], names = [], sw = [], geteilt = [];
   const vc = new VirtualConsole();
   /* jsdom cannot parse some modern CSS of the Design Lab kit: not an app error */
   vc.on('jsdomError', e => { if (!/Not implemented|Could not parse CSS stylesheet/.test(e.message)) errors.push(e.message); });
@@ -76,13 +76,10 @@ function boot(o){
         Object.defineProperty(w.navigator, 'maxTouchPoints', { configurable: true, value: 5 });
         w.navigator.canShare = x => !!(x && x.files && x.files.length);
         w.navigator.share = async x => { if (o.teilen === 'zu') throw Object.assign(new Error('closed'), { name: 'AbortError' }); geteilt.push(x.files[0]); };
-        /* WebKit on iOS: the only engine with -webkit-touch-callout; scrolls are recorded */
-        w.CSS = { supports: (p, v) => p === '-webkit-touch-callout' && v === 'none', escape: s => String(s) };
-        w.scrollTo = (x, y) => { gescrollt.push([x, y]); };
       }
     }
   });
-  return { dom, w: dom.window, d: dom.window.document, errors, blobs, names, sw, geteilt, gescrollt };
+  return { dom, w: dom.window, d: dom.window.document, errors, blobs, names, sw, geteilt };
 }
 /* jsdom's Blob has no text()/arrayBuffer(): read it with the window's FileReader */
 const readBlob = (env, b, bin) => new Promise((res, rej) => { const fr = new env.w.FileReader();
@@ -110,8 +107,6 @@ function harness(env){
   const env = boot(); await sleep(50);
   const fixture = makeFixture(env.w.VORLAGE);
   await runChecks(harness(env), fixture);
-  check(env.d.querySelector('#dmenu [data-aktion="diag"]').hidden && !env.d.querySelector('.ev-diag'), 'computer: no iPad diagnostics in the file menu');
-
   /* optional: a real data file (private/, never in the repository): open, every page, save, nothing lost */
   const real = process.argv[2];
   if (real && fs.existsSync(real)){
@@ -199,42 +194,6 @@ function harness(env){
       'iPad: Save opens the share sheet with 2026-10-14_EVEN.json, no download (got ' + (f && f.name) + ')');
     check((back.buchungen || []).some(b => b.text === 'Share sheet test') && $('#speichern').textContent.trim() === 'Saved' && /Shared as 2026-10-14_EVEN\.json/.test(meldung()),
       'iPad: the shared file holds the new booking and the window is saved');
-    /* the page jumping while typing: the keyboard going away places the page again, a move between fields does not */
-    const vorher = e.gescrollt.length;
-    $('#bu-text').focus(); $('#bu-betrag').focus(); await sleep(200);
-    const zwischen = e.gescrollt.length;
-    $('#bu-betrag').blur(); await sleep(200);
-    check(zwischen === vorher && e.gescrollt.length === vorher + 1, 'iPad: leaving the last field places the page again, moving between fields does not');
-    const css = Array.from(d.querySelectorAll('style')).map(s => s.textContent).join('\n');
-    const ios = (css.match(/@supports \(-webkit-touch-callout:none\)\{[\s\S]*?\n\}/) || [''])[0];
-    check(/html\{scroll-behavior:auto;scroll-padding-top:0\}/.test(ios) && /\.ev,\.ev-start\{overflow-x:clip\}/.test(ios) && /\.ev-side\{height:100dvh\}/.test(ios) && /font-size:16px/.test(ios),
-      'iPad: the iOS-only styles (no smooth scroll or top offset, clip on the shell, 100dvh, 16px fields) are in the page');
-    /* iPadOS 26 with a keyboard attached: a scroll right after a typed key in a field in view is undone; after Tab, after
-       a while or with a finger on the screen it stays */
-    const iosScroll = y => { Object.defineProperty(e.w, 'scrollY', { configurable: true, writable: true, value: y }); e.w.dispatchEvent(new e.w.Event('scroll')); };
-    const taste = (sel, key) => { const el = $(sel); el.focus(); el.dispatchEvent(new e.w.KeyboardEvent('keydown', { key, bubbles: true, cancelable: true })); };
-    let n = e.gescrollt.length;
-    taste('#bu-text', 'a'); iosScroll(240);
-    const zurueck = e.gescrollt.slice(n);
-    check(zurueck.length === 1 && zurueck[0][1] === 0, 'iPad: the page scrolled up right after a typed key goes back (' + JSON.stringify(zurueck) + ')');
-    iosScroll(0); n = e.gescrollt.length;
-    taste('#bu-text', 'Tab'); iosScroll(240);
-    check(e.gescrollt.length === n, 'iPad: a scroll after Tab stays');
-    iosScroll(0); taste('#bu-text', 'b'); await sleep(450); n = e.gescrollt.length; iosScroll(240);
-    check(e.gescrollt.length === n, 'iPad: a scroll a while after the key stays');
-    iosScroll(0); taste('#bu-text', 'c'); d.dispatchEvent(new e.w.Event('touchstart')); n = e.gescrollt.length; iosScroll(240);
-    check(e.gescrollt.length === n, 'iPad: a scroll with a finger on the screen stays');
-    d.dispatchEvent(new e.w.Event('touchend')); iosScroll(0);
-    /* the diagnostics: in the file menu on iPhone and iPad, a log that names no typed character */
-    const dm = $('#dmenu [data-aktion="diag"]');
-    check(dm && !dm.hidden, 'iPad: the file menu offers the iPad diagnostics');
-    dm.click(); await sleep(20);
-    taste('#bu-text', 'x'); iosScroll(120);
-    const box = $('.ev-diag');
-    check(box && /iOS \?/.test(box.textContent) && /undo 120/.test(box.textContent) && / key /.test(box.textContent) && !/\bx\b/.test(box.textContent.split('\n').slice(1).join(' ').replace(/\d+×\d+/g, '')),
-      'iPad: the diagnostics log the key (not which), the undone scroll and the viewport');
-    iosScroll(0); dm.click(); await sleep(20);
-    check(!$('.ev-diag'), 'iPad: the diagnostics switch off again');
     e.dom.window.close();
   }
   {
