@@ -56,7 +56,7 @@ function fsDaten(state, ix, E, opt){
   // the chart of accounts decides the group: accounts moved out of their number range become overrides
   E.konten(state).forEach(k=>{ if(K.GROUPS[k.grp] && K.groupOf(k.nr) !== k.grp) S.overrides[k.nr] = k.grp; });
   K.invalidate();
-  // the engine's Excel and overview use the cash flow from the bookings (v5_cf_direkt.js) where it is loaded
+  // the engine's Excel and overview use the cash flow from the bookings (cfDirekt below) where it is loaded
   const direkt = typeof cfDirektZwischen === "function" ? cfDirektZwischen : (opt.cfDirektZwischen || null);
   if(direkt) S.cfDirekt = (p, c) => direkt(K, state, p, c);
   return K;

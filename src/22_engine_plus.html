@@ -808,7 +808,7 @@ function flachVon(q, typ){
   if(!q || q.art !== "periode") return null;
   if(typ === "bilanz")  return E.flachBilanz(E.bilanz(q.state, q.ix, q.von, q.bis));
   if(typ === "erfolg")  return E.flachErfolg(E.erfolg(q.state, q.ix, q.von, q.bis));
-  return null;   // the cash flow has no comparison figures here (direct method, v5_cf_direkt.js)
+  return null;   // the cash flow has no comparison figures here (direct method, cfDirekt in 60_reports.js)
 }
 function zeigenAus(m){
   const s = new Set();

@@ -8,7 +8,10 @@ depreciation, twelve-month view, year comparison and closing, Excel and PDF expo
 tracking. Three looks under Appearance (Glass, Ember, Prism), built on the Design Lab system.
 
 The app holds no data: your books are a separate `.json` file you open in it. Save writes straight back into that
-file (Chrome/Edge on a computer) or downloads it (other browsers, iPhone).
+file (Chrome/Edge on a computer), opens the share sheet (iPhone, iPad: *Save to Files*) or downloads it (other
+browsers). On a computer, *Save to folder* writes each day's file into a chosen app folder and moves the older ones into
+a backup folder; nothing is ever deleted. Unsaved changes are kept as a working copy in the browser until the next save.
+Served from GitHub Pages, the app also works offline (`pwa/sw.js`).
 
 - App: `docs/index.html`, built from `src/` (plain concatenation) by `./build.sh`, or on Windows by double-clicking
   `build.cmd`; served by GitHub Pages from `/docs` together with the manifest and home-screen icons from `pwa/`.
@@ -29,7 +32,7 @@ file (Chrome/Edge on a computer) or downloads it (other browsers, iPhone).
 | `src/10_template.html` | template for new files: groups, statement structure, neutral chart of accounts |
 | `src/20_engine.html`, `22_engine_plus.html` | engine: file check and repair, balances, statements, spreads, fixed assets, imports |
 | `src/30_ui.html` … `99_boot.js` | interface (one closure): views, KPI cards, booking, statements engine, reports, fixed assets, Excel writer, exports, import, start |
-| `pwa/` | manifest and home-screen icons |
+| `pwa/` | manifest, home-screen icons and the offline cache (`sw.js`) |
 | `tests/` | `make_fixture.js` (synthetic books), `checks.js` (the steps), `test_app.js` (jsdom runner), `test_ui.js` (three looks, Chromium), `smoke.js` (Design Lab) |
 
 ## Your data stays out of this repository

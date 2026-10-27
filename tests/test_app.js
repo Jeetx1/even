@@ -38,7 +38,7 @@ function fakeIDB(speicher){
 
 function boot(o){
   o = o || {};
-  const errors = [], blobs = [], names = [], sw = [];
+  const errors = [], blobs = [], names = [], sw = [], geteilt = [];
   const vc = new VirtualConsole();
   /* jsdom cannot parse some modern CSS of the Design Lab kit: not an app error */
   vc.on('jsdomError', e => { if (!/Not implemented|Could not parse CSS stylesheet/.test(e.message)) errors.push(e.message); });
@@ -71,9 +71,15 @@ function boot(o){
         w.showSaveFilePicker = async x => { const f = fakeFile(x.suggestedName); if (o.ordner) o.ordner.kids.set(f.name, f); return f; };
       }
       if (o.ordner) w.showDirectoryPicker = async () => o.ordner;
+      /* an iPad: no file pickers, touch points and the share sheet (o.teilen: 'ok', or 'zu' when it is closed) */
+      if (o.teilen){
+        Object.defineProperty(w.navigator, 'maxTouchPoints', { configurable: true, value: 5 });
+        w.navigator.canShare = x => !!(x && x.files && x.files.length);
+        w.navigator.share = async x => { if (o.teilen === 'zu') throw Object.assign(new Error('closed'), { name: 'AbortError' }); geteilt.push(x.files[0]); };
+      }
     }
   });
-  return { dom, w: dom.window, d: dom.window.document, errors, blobs, names, sw };
+  return { dom, w: dom.window, d: dom.window.document, errors, blobs, names, sw, geteilt };
 }
 /* jsdom's Blob has no text()/arrayBuffer(): read it with the window's FileReader */
 const readBlob = (env, b, bin) => new Promise((res, rej) => { const fr = new env.w.FileReader();
@@ -166,6 +172,30 @@ function harness(env){
     check(etf && etf.querySelector('input[type="checkbox"]').checked && etf.querySelector('select').value === '1400.1' && etf.querySelector('input.ev-cell').value === 'ETF portfolio',
       'Statement settings: the ETF portfolio is detected, on the charts, with 1400.1 as its valuation account');
     e3.dom.window.close();
+  }
+  {
+    /* iPhone and iPad: Save hands the file to the share sheet ("Save to Files" picks the folder), no download;
+       closing the share sheet saves nothing and the change stays unsaved */
+    const o = { teilen: 'ok' }, e = boot(o); await sleep(50); const h = harness(e), d = e.d, $ = s => d.querySelector(s);
+    const fire = (el, typ, init) => el.dispatchEvent(typ === 'keydown' ? new e.w.KeyboardEvent('keydown', Object.assign({ bubbles: true, cancelable: true }, init)) : new e.w.Event(typ, { bubbles: true }));
+    const tippe = (sel, wert) => { const el = $(sel); el.focus(); el.value = wert; fire(el, 'input'); return el; };
+    await h.openJson(JSON.stringify(makeFixture(e.w.VORLAGE)), '2026-10-01_EVEN.json'); await sleep(120);
+    for (let k = 0; k < 2; k++){ const q = $('#dlg-frage.on #fr-knoepfe button'); if (q){ q.click(); await sleep(60); } }
+    $('#nav button[data-tab="buchen"]').click(); await sleep(40);
+    tippe('#bu-text', 'Share sheet test'); tippe('#bu-betrag', '12');
+    fire(tippe('#bu-soll', '4000'), 'keydown', { key: 'Tab' }); fire(tippe('#bu-haben', '1020'), 'keydown', { key: 'Tab' }); await sleep(10);
+    $('#bu-ok').click(); await sleep(60);
+    const meldung = () => $('#meldungen').textContent;
+    o.teilen = 'zu'; $('#speichern').click(); await sleep(400);
+    check(!e.geteilt.length && !e.names.length && $('#speichern').textContent.trim() !== 'Saved' && /share sheet was closed/.test(meldung()),
+      'iPad: closing the share sheet saves nothing, the booking stays unsaved');
+    o.teilen = 'ok'; $('#speichern').click(); await sleep(400);
+    const f = e.geteilt[0], back = f ? JSON.parse(await readBlob(e, f) || '{}') : {};
+    check(e.geteilt.length === 1 && f.name === '2026-10-14_EVEN.json' && f.type === 'application/json' && !e.names.length,
+      'iPad: Save opens the share sheet with 2026-10-14_EVEN.json, no download (got ' + (f && f.name) + ')');
+    check((back.buchungen || []).some(b => b.text === 'Share sheet test') && $('#speichern').textContent.trim() === 'Saved' && /Shared as 2026-10-14_EVEN\.json/.test(meldung()),
+      'iPad: the shared file holds the new booking and the window is saved');
+    e.dom.window.close();
   }
   {
     /* Overview (Years): more than 40 months of reports: the net worth line keeps only the latest dot */

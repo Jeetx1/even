@@ -151,6 +151,18 @@ async function runChecks(env, fixture){
   const tabEv = new w.KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }); haben.dispatchEvent(tabEv); await sleep(10);
   check(tabEv.defaultPrevented && !$('#bu-split').hidden && d.activeElement && d.activeElement.dataset.sp === '0', 'Tab with the credit side empty: the split opens and takes the focus, nothing else');
   $('#bu-reset').click(); await sleep(10);
+  /* Tab out of the form's last field goes to Book (Safari skips buttons on Tab and went to the recent bookings far down) */
+  const tabAus = sel => { const el = $(sel); el.focus(); const ev = new w.KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }); el.dispatchEvent(ev); return ev; };
+  tippe('#bu-betrag', '50');
+  fire(tippe('#bu-soll', '4000'), 'keydown', { key: 'Tab' }); fire(tippe('#bu-haben', '1020'), 'keydown', { key: 'Tab' }); await sleep(10);
+  let tabEv2 = tabAus('#bu-haben'); await sleep(10);
+  check(tabEv2.defaultPrevented && d.activeElement === $('#bu-ok') && $('#bu-split').hidden, 'Tab from a filled credit field goes to Book, nothing else');
+  $('#vt-an').click(); await sleep(10);
+  tabEv2 = tabAus('#bu-haben');
+  check(!$('#vt-panel').hidden && !tabEv2.defaultPrevented, 'with the spread switched on, Tab from credit moves on to its fields');
+  tabEv2 = tabAus('#vt-monate'); await sleep(10);
+  check(tabEv2.defaultPrevented && d.activeElement === $('#bu-ok'), 'Tab from the spread’s last field goes to Book');
+  $('#bu-reset').click(); await sleep(10);
 
   /* 7f. the export dialog: the ledger of every account, the statements report with the app icon */
   $('#dmenu [data-aktion="export"]').click(); await sleep(20);

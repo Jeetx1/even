@@ -2,7 +2,7 @@
 <html lang="en" data-theme="glass">
 <head>
 <meta charset="utf-8">
-<meta name="build" content="2026-10-25.4">
+<meta name="build" content="2026-10-27.1">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#070B10">
 <meta name="color-scheme" content="light dark">
@@ -4072,7 +4072,7 @@ function erfolg(state, ix, von, bis, kl, zeigen){
 
 /* ---- Nicht liquiditätswirksame Buchungen gegen Bilanzkonten ---------- */
 // Non-cash on account level: account flag "nc"/"cash" overrides the group.
-/* The cash flow lives in v5_cf_direkt.js (direct method from the bookings, since 12 October 2026). */
+/* The cash flow lives in 60_reports.js (cfDirekt: direct method from the bookings, since 12 October 2026). */
 
 /* ---- Fremdwährung --------------------------------------------------- */
 // Zeile = [Konto, Soll, Haben] oder [Konto, Soll, Haben, Fremdwährungsbetrag, Kurs].
@@ -5011,7 +5011,7 @@ function flachVon(q, typ){
   if(!q || q.art !== "periode") return null;
   if(typ === "bilanz")  return E.flachBilanz(E.bilanz(q.state, q.ix, q.von, q.bis));
   if(typ === "erfolg")  return E.flachErfolg(E.erfolg(q.state, q.ix, q.von, q.bis));
-  return null;   // the cash flow has no comparison figures here (direct method, v5_cf_direkt.js)
+  return null;   // the cash flow has no comparison figures here (direct method, cfDirekt in 60_reports.js)
 }
 function zeigenAus(m){
   const s = new Set();
@@ -6499,11 +6499,21 @@ async function schreibrechte(h){
   if(await h.queryPermission({mode:"readwrite"}) === "granted") return true;
   return (await h.requestPermission({mode:"readwrite"})) === "granted";
 }
-function ablegen(blob, name){
+/* without file pickers: on the iPhone and iPad the share sheet ("Save to Files" picks the folder, as in CICO and RISE),
+   elsewhere a download. An iPad with a keyboard reports a fine pointer, so its touch points count too (a Mac has none).
+   "geteilt" (shared), "geladen" (downloaded) or null (the share sheet was closed) */
+async function ablegen(blob, name){
+  if((Kit.TOUCH || navigator.maxTouchPoints > 1) && navigator.canShare){
+    try{
+      const f = new File([blob], name, {type:blob.type.split(";")[0] || "application/octet-stream"});
+      if(navigator.canShare({files:[f]})){ await navigator.share({files:[f]}); return "geteilt"; }
+    }catch(err){ if(err && err.name === "AbortError") return null; }
+  }
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob); a.download = name;
   document.body.appendChild(a); a.click();
   setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 800);
+  return "geladen";
 }
 /* one save at a time: a second Save while one is still writing (a double click, Ctrl+S again) is ignored */
 let speichertGerade = false;
@@ -6580,9 +6590,10 @@ async function speichernJetzt(alsNeu, mitDatum){
     }catch(err){ zurueckSetzen(); if(err && err.name !== "AbortError") meldung("Could not save: "+err.message, {fehler:true}); return false; }
   }
   const name = vorschlag(mitDatum);
-  ablegen(new Blob([text],{type:"application/json;charset=utf-8"}), name);
+  const wie = await ablegen(new Blob([text],{type:"application/json;charset=utf-8"}), name);
+  if(!wie){ zurueckSetzen(); meldung("Not saved: the share sheet was closed."); return false; }
   if(!mitDatum){ dateiname = name; istBeispiel = false; basis = state.saved; } else zurueckSetzen();
-  meldung(mitDatum ? "Dated copy downloaded: "+name : "Downloaded as "+name);
+  meldung(wie === "geteilt" ? (mitDatum ? "Dated copy shared: " : "Shared as ")+name : (mitDatum ? "Dated copy downloaded: " : "Downloaded as ")+name);
   if(!mitDatum) gespeichert(stand);
   return true;
 }
@@ -7676,6 +7687,17 @@ function initBuchen(){
   hauptKonto('#bu-haben', 'haben');
   textVorschlag($('#bu-text'));
   ['#bu-datum', '#bu-text', '#bu-betrag'].forEach(s => $(s).addEventListener('keydown', e => { if (e.key === 'Enter' && !e.defaultPrevented){ e.preventDefault(); enter(); } }));
+  /* Tab out of the form's last field goes to Book. Safari (iPad, iPhone, Mac) skips buttons on Tab, so the focus left
+     the form for the recent bookings far down the page and scrolled there */
+  const maske = $('#maske');
+  const sichtbar = el => { for (let x = el; x && x !== maske; x = x.parentElement) if (x.hidden || getComputedStyle(x).display === 'none') return false; return true; };
+  maske.addEventListener('keydown', e => {
+    if (e.key !== 'Tab' || e.shiftKey || e.defaultPrevented || !e.target.matches('input, select, textarea')) return;
+    const felder = $$('input:not([type="hidden"]), select, textarea', maske).filter(el => el.tabIndex >= 0 && !el.disabled && sichtbar(el));
+    if (felder[felder.length - 1] !== e.target) return;
+    e.preventDefault();
+    const ok = $('#bu-ok'); try { ok.focus({ preventScroll: true }); } catch (er){ ok.focus(); }
+  });
   const setzeDatum = iso => { entwurf.datum = iso; entwurf.datumRoh = ''; $('#bu-datum').value = dateLong(iso); aktualisiere(); };
   $('#bu-heute').onclick = () => setzeDatum(heute());
   $('#bu-monatsende').onclick = () => setzeDatum(E.monatsende((E.istDatum(entwurf.datum) ? entwurf.datum : heute()).slice(0, 7)));
@@ -10194,7 +10216,7 @@ function fsDaten(state, ix, E, opt){
   // the chart of accounts decides the group: accounts moved out of their number range become overrides
   E.konten(state).forEach(k=>{ if(K.GROUPS[k.grp] && K.groupOf(k.nr) !== k.grp) S.overrides[k.nr] = k.grp; });
   K.invalidate();
-  // the engine's Excel and overview use the cash flow from the bookings (v5_cf_direkt.js) where it is loaded
+  // the engine's Excel and overview use the cash flow from the bookings (cfDirekt below) where it is loaded
   const direkt = typeof cfDirektZwischen === "function" ? cfDirektZwischen : (opt.cfDirektZwischen || null);
   if(direkt) S.cfDirekt = (p, c) => direkt(K, state, p, c);
   return K;
@@ -11437,7 +11459,7 @@ async function jahrOeffnen(j){
   if (aendere('Year ' + j + ' reopened', () => { state.abgeschlossen = (state.abgeschlossen || []).filter(x => x !== j); }, { jahreFrei: true })){ baueKontrollen(); render(false); toast('Year ' + j + ' reopened.', { action: { text: 'Undo', fn: rueckgaengig } }); }
 }
 
-/* ================================================================ IMPORT OF CLOSING BALANCES (rules of 74_import.js) */
+/* ================================================================ IMPORT OF CLOSING BALANCES (rules in 22_engine_plus: saldenAusImport) */
 function importDialog(){
   const imp = { zeilen: null, blaetter: null, quelle: '', analyse: null, zuordnung: {} };
   const text = h('textarea', { class: 'textarea', id: 'im-text', placeholder: 'Account\tName\tBalance\tPrior year\n1020\tBank account CHF\t2\'500.00\t1\'800.00', rows: 5 });

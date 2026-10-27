@@ -252,7 +252,7 @@ async function jahrOeffnen(j){
   if (aendere('Year ' + j + ' reopened', () => { state.abgeschlossen = (state.abgeschlossen || []).filter(x => x !== j); }, { jahreFrei: true })){ baueKontrollen(); render(false); toast('Year ' + j + ' reopened.', { action: { text: 'Undo', fn: rueckgaengig } }); }
 }
 
-/* ================================================================ IMPORT OF CLOSING BALANCES (rules of 74_import.js) */
+/* ================================================================ IMPORT OF CLOSING BALANCES (rules in 22_engine_plus: saldenAusImport) */
 function importDialog(){
   const imp = { zeilen: null, blaetter: null, quelle: '', analyse: null, zuordnung: {} };
   const text = h('textarea', { class: 'textarea', id: 'im-text', placeholder: 'Account\tName\tBalance\tPrior year\n1020\tBank account CHF\t2\'500.00\t1\'800.00', rows: 5 });

@@ -917,6 +917,17 @@ function initBuchen(){
   hauptKonto('#bu-haben', 'haben');
   textVorschlag($('#bu-text'));
   ['#bu-datum', '#bu-text', '#bu-betrag'].forEach(s => $(s).addEventListener('keydown', e => { if (e.key === 'Enter' && !e.defaultPrevented){ e.preventDefault(); enter(); } }));
+  /* Tab out of the form's last field goes to Book. Safari (iPad, iPhone, Mac) skips buttons on Tab, so the focus left
+     the form for the recent bookings far down the page and scrolled there */
+  const maske = $('#maske');
+  const sichtbar = el => { for (let x = el; x && x !== maske; x = x.parentElement) if (x.hidden || getComputedStyle(x).display === 'none') return false; return true; };
+  maske.addEventListener('keydown', e => {
+    if (e.key !== 'Tab' || e.shiftKey || e.defaultPrevented || !e.target.matches('input, select, textarea')) return;
+    const felder = $$('input:not([type="hidden"]), select, textarea', maske).filter(el => el.tabIndex >= 0 && !el.disabled && sichtbar(el));
+    if (felder[felder.length - 1] !== e.target) return;
+    e.preventDefault();
+    const ok = $('#bu-ok'); try { ok.focus({ preventScroll: true }); } catch (er){ ok.focus(); }
+  });
   const setzeDatum = iso => { entwurf.datum = iso; entwurf.datumRoh = ''; $('#bu-datum').value = dateLong(iso); aktualisiere(); };
   $('#bu-heute').onclick = () => setzeDatum(heute());
   $('#bu-monatsende').onclick = () => setzeDatum(E.monatsende((E.istDatum(entwurf.datum) ? entwurf.datum : heute()).slice(0, 7)));

@@ -84,11 +84,21 @@ async function schreibrechte(h){
   if(await h.queryPermission({mode:"readwrite"}) === "granted") return true;
   return (await h.requestPermission({mode:"readwrite"})) === "granted";
 }
-function ablegen(blob, name){
+/* without file pickers: on the iPhone and iPad the share sheet ("Save to Files" picks the folder, as in CICO and RISE),
+   elsewhere a download. An iPad with a keyboard reports a fine pointer, so its touch points count too (a Mac has none).
+   "geteilt" (shared), "geladen" (downloaded) or null (the share sheet was closed) */
+async function ablegen(blob, name){
+  if((Kit.TOUCH || navigator.maxTouchPoints > 1) && navigator.canShare){
+    try{
+      const f = new File([blob], name, {type:blob.type.split(";")[0] || "application/octet-stream"});
+      if(navigator.canShare({files:[f]})){ await navigator.share({files:[f]}); return "geteilt"; }
+    }catch(err){ if(err && err.name === "AbortError") return null; }
+  }
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob); a.download = name;
   document.body.appendChild(a); a.click();
   setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 800);
+  return "geladen";
 }
 /* one save at a time: a second Save while one is still writing (a double click, Ctrl+S again) is ignored */
 let speichertGerade = false;
@@ -165,9 +175,10 @@ async function speichernJetzt(alsNeu, mitDatum){
     }catch(err){ zurueckSetzen(); if(err && err.name !== "AbortError") meldung("Could not save: "+err.message, {fehler:true}); return false; }
   }
   const name = vorschlag(mitDatum);
-  ablegen(new Blob([text],{type:"application/json;charset=utf-8"}), name);
+  const wie = await ablegen(new Blob([text],{type:"application/json;charset=utf-8"}), name);
+  if(!wie){ zurueckSetzen(); meldung("Not saved: the share sheet was closed."); return false; }
   if(!mitDatum){ dateiname = name; istBeispiel = false; basis = state.saved; } else zurueckSetzen();
-  meldung(mitDatum ? "Dated copy downloaded: "+name : "Downloaded as "+name);
+  meldung(wie === "geteilt" ? (mitDatum ? "Dated copy shared: " : "Shared as ")+name : (mitDatum ? "Dated copy downloaded: " : "Downloaded as ")+name);
   if(!mitDatum) gespeichert(stand);
   return true;
 }
