@@ -4,8 +4,29 @@
 const AKTIONEN = {
   oeffnen:oeffnen, neu:neu, speichern:()=>speichern(false,false), speichernAls:()=>speichern(true,false), kopie:()=>speichern(true,true),
   export:()=>{ if(geladen) exportDialog(); }, import:()=>{ if(geladen) importDialog(); }, csv:()=>{ if(geladen) journalCsv(); },
-  undo:rueckgaengig, redo:wiederholen, schliessen:schliessen, ordner:ordnerDialog
+  undo:rueckgaengig, redo:wiederholen, schliessen:schliessen, ordner:ordnerDialog, diag:()=>diagSchalten(!diagBox)
 };
+/* WebKit on iOS (iPhone, iPad): the only engine that knows -webkit-touch-callout */
+const IOS = !!(window.CSS && CSS.supports && CSS.supports("-webkit-touch-callout", "none"));
+/* iPad diagnostics (file menu, iPhone and iPad only; stays on for this device until switched off): what moved the page,
+   newest on top, for a screenshot. No typed characters, only that a key was pressed */
+let diagBox = null; const diagZeilen = [];
+function diag(was){
+  if(!diagBox) return;
+  const vv = window.visualViewport, a = document.activeElement, r2 = x => Math.round(x * 10) / 10;
+  const t = new Date(), zeit = t.toTimeString().slice(0, 8) + "." + String(t.getMilliseconds()).padStart(3, "0");
+  diagZeilen.unshift(zeit + " " + was.padEnd(8) + " y " + r2(window.scrollY) + (vv ? " · vv " + r2(vv.offsetTop) + "/" + r2(vv.height) : "") +
+    " · ih " + window.innerHeight + (a && a.id ? " · " + a.id : ""));
+  diagZeilen.length = Math.min(diagZeilen.length, 14);
+  const m = navigator.userAgent.match(/OS (\d+)_(\d+)(?:_(\d+))?/);
+  diagBox.textContent = "EVEN " + ((document.querySelector('meta[name="build"]') || {}).content || "") + " · iOS " + (m ? m.slice(1).filter(Boolean).join(".") : "?") +
+    (navigator.standalone ? " · home screen" : " · browser") + " · " + window.innerWidth + "×" + window.innerHeight + "\n" + diagZeilen.join("\n");
+}
+function diagSchalten(an){
+  if(an && !diagBox){ diagBox = h("div", {class: "ev-diag", "aria-hidden": "true"}); document.body.appendChild(diagBox); diag("on"); }
+  if(!an && diagBox){ diagBox.remove(); diagBox = null; diagZeilen.length = 0; }
+  try{ if(an) localStorage.setItem("even.diag", "1"); else localStorage.removeItem("even.diag"); }catch(e){}
+}
 Kit.init({
   app: "accounting", defaultTheme: "glass", icon: (theme, u) => APP_ICONS.even(u).replace("<svg ", '<svg width="100%" height="100%" '),
   toolEffects: [
@@ -53,10 +74,34 @@ Kit.initDropdowns("select.select");
       if(geladen && ["uebersicht","hauptbuch","ueberjahre","anlagen","sachanlagen"].indexOf(PAGE) >= 0) render(false); }, 200); }); },
     /* iPhone and iPad: when the keyboard goes away, iOS can leave the page shifted until the app is switched; scrolling
        to where it already is makes it place the page again (the CSS half of this fix is at the end of 05_styles) */
-    () => { if(!(window.CSS && CSS.supports && CSS.supports("-webkit-touch-callout", "none"))) return;
+    () => { if(!IOS) return;
       document.addEventListener("focusout", () => setTimeout(() => {
         const a = document.activeElement; if(a && a.matches && a.matches("input, select, textarea")) return;
         window.scrollTo(window.scrollX, window.scrollY); }, 120)); },
+    /* iPadOS 26 with a keyboard attached: typing in a field that is in full view scrolled the page up (iOS still reckons
+       with an on-screen keyboard that is not there), until the app was switched. A scroll in the moment after a typed key,
+       without a finger on the screen, while the field was in full view, is undone. Tab, Enter and the arrows are no
+       typed keys, so moving between fields and booking scroll as before */
+    () => { if(!IOS) return;
+      let vorher = null, bis = 0, finger = false, letztY = window.scrollY;
+      document.addEventListener("touchstart", () => { finger = true; }, {passive: true, capture: true});
+      ["touchend", "touchcancel"].forEach(t => document.addEventListener(t, () => { finger = false; }, {passive: true, capture: true}));
+      document.addEventListener("focusin", () => diag("focus"));
+      document.addEventListener("keydown", e => {
+        const f = e.target, getippt = e.key && (e.key.length === 1 || e.key === "Backspace" || e.key === "Delete") && !e.ctrlKey && !e.metaKey;
+        if(!getippt || !(f && f.matches && f.matches("input, textarea"))){ vorher = null; return; }
+        const r = f.getBoundingClientRect(), vv = window.visualViewport, oben = vv ? vv.offsetTop : 0, hoch = vv ? vv.height : window.innerHeight;
+        vorher = r.top >= oben && r.bottom <= oben + hoch ? window.scrollY : null; bis = performance.now() + 400;
+        diag("key");
+      }, true);
+      window.addEventListener("scroll", () => {
+        const y = window.scrollY;
+        if(vorher !== null && !finger && performance.now() <= bis && Math.abs(y - vorher) >= 2){ diag("undo " + Math.round(y - vorher)); window.scrollTo(window.scrollX, vorher); letztY = vorher; return; }
+        if(Math.abs(y - letztY) >= 2){ letztY = y; diag("scroll"); }
+      }, {passive: true});
+      if(window.visualViewport){ visualViewport.addEventListener("resize", () => diag("vv size")); visualViewport.addEventListener("scroll", () => diag("vv move")); }
+      const m = $('#dmenu [data-aktion="diag"]'); if(m) m.hidden = false;
+      try{ if(localStorage.getItem("even.diag") === "1") diagSchalten(true); }catch(e){} },
     /* hosted (GitHub Pages): the web manifest and the offline cache (sw.js), so the app also opens without a connection.
        Opened as a local file, nothing of this is loaded. */
     () => { if(location.protocol !== "https:") return;
@@ -70,7 +115,7 @@ Kit.initDropdowns("select.select");
     () => { $("#buildzeile").textContent = "EVEN · build " + ((document.querySelector('meta[name="build"]') || {}).content || "local"); },
     () => { $("#start-hinweis").textContent = FSA
       ? "Saving writes straight back into the opened file, or with Save to folder into the app folder, the older file going to the backup folder. Ctrl+S saves, Ctrl+Z undoes."
-      : "This browser cannot write back into the opened file. Saving creates a new file each time (on iPhone in Files). To save into the same file, use Chrome or Edge on a computer."; },
+      : "This browser cannot write back into the opened file. Saving creates a new file each time (on iPhone and iPad through the share sheet: Save to Files). To save into the same file, use Chrome or Edge on a computer."; },
     zeigeArbeitskopie
   ];
   /* each part boots on its own, so one failing part never blanks the page */
