@@ -488,6 +488,11 @@ function monatsGruppe(k, offenListe, kopf, koerper){
 }
 const hinweisKarte = (art, kids) => h('div', { class: 'ev-check ev-jo-note is-' + art }, [h('span', { class: 'ev-check__i', html: icon(art === 'fehler' ? 'alert' : 'info', 12) }), h('span', {}, kids)]);
 function renderJournal(){
+  /* with a filter set: every year's matching bookings, one list; the window's controls wait until it is removed */
+  $('#jo-suche').closest('.ev-search').hidden = $('#jo-auf').hidden = $('#jo-zu').hidden = !!filter;
+  $('#ctl').hidden = !!filter;
+  $('#jo-filter span').textContent = filter ? 'Change filter' : 'Filter';
+  if (filter){ renderJournalFilter(); return; }
   const w = fenster(), box = $('#jo-liste'), q = norm(suche.trim()), betragSuche = E.betragAusEingabe(suche);
   const alle = E.buchungenIn(state, w.von, w.bis).filter(b => !b.virtuell);
   $('#jo-export').textContent = fensterName();
@@ -522,6 +527,79 @@ function renderJournal(){
   });
 }
 
+/* ---------------------------------------------------------------- the filter: Ctrl+F (or Filter on the Journal) opens
+   the dialog, F2, Enter or Set filter sets it; the Journal then shows every year's bookings that match, one list sorted
+   by a click on a column (again: the other way round). Ctrl+D removes it and the Journal is back on its window. In the
+   open dialog Ctrl+F closes it and leaves the browser its own search. Exports keep covering the window */
+const FILTER_FELDER = [['datum', 'Date'], ['text', 'Text'], ['soll', 'Debit'], ['haben', 'Credit'], ['betrag', 'Amount']];
+let filter = null, fSort = { k: 'datum', ab: false }, filterVorher = null;
+const filterOffen = () => !$('#dlg-filter').hidden;
+function filterAuf(){
+  if (!geladen) return;
+  pickerZu(); navZu();
+  const hg = $('#dlg-filter'); filterVorher = document.activeElement;
+  FILTER_FELDER.forEach(([k]) => { const el = $('#fi-' + k); el.value = filter && filter[k] || ''; el.closest('.field').classList.remove('is-error'); });
+  if (hg.hidden){ hg.hidden = false; hg.classList.add('on'); document.dispatchEvent(new CustomEvent('dl:overlay', { detail: { open: true } })); }
+  const el = $('#fi-text'); el.focus(); el.select();
+}
+function filterZu(){
+  const hg = $('#dlg-filter'); if (hg.hidden) return;
+  hg.classList.remove('on'); hg.hidden = true;
+  document.dispatchEvent(new CustomEvent('dl:overlay', { detail: { open: false } }));
+  try { if (filterVorher && filterVorher.isConnected) filterVorher.focus({ preventScroll: true }); } catch (e){}
+}
+function filterSetzen(){
+  const f = {}; FILTER_FELDER.forEach(([k]) => { const v = $('#fi-' + k).value.trim(); if (v) f[k] = v; });
+  if (f.betrag && !isFinite(E.betragAusEingabe(f.betrag))){ const el = $('#fi-betrag'); el.closest('.field').classList.add('is-error'); el.focus(); el.select(); return; }
+  filterZu();
+  if (!Object.keys(f).length){ filterWeg(); return; }
+  filter = f; filterVorher = null;
+  if (PAGE !== 'journal') zeige('journal'); else { render(false); window.scrollTo(0, 0); }
+}
+function filterWeg(){
+  if (!filter) return;
+  filter = null;
+  if (PAGE === 'journal') render(false);
+  toast('Filter removed. The Journal shows ' + fensterName() + ' again.');
+}
+/* an account field: a number finds by its start (40 → 4000, 4001 …), anything else by number or name */
+const kontoTrifft = (nr, q) => /^\d[\d.]*$/.test(q) ? String(nr).indexOf(q) === 0 : norm(nr + ' ' + (KN[nr] || '')).indexOf(norm(q)) >= 0;
+function filterTrifft(b, f){
+  if (f.datum && dateLong(b.datum).indexOf(f.datum) < 0 && b.datum.indexOf(f.datum) < 0) return false;
+  if (f.text){ const q = norm(f.text); if (![b.text, b.beleg].concat(b.z.map(z => z[5])).some(t => norm(t).indexOf(q) >= 0)) return false; }
+  const seite = (soll, q) => b.z.some(z => (soll ? (z[1] || 0) > (z[2] || 0) : (z[2] || 0) > (z[1] || 0)) && kontoTrifft(z[0], q));
+  if (f.soll && !seite(true, f.soll)) return false;
+  if (f.haben && !seite(false, f.haben)) return false;
+  if (f.betrag){ const v = Math.abs(E.betragAusEingabe(f.betrag));
+    if (!(Math.abs(buchungsform(b).betrag - v) < .005 || b.z.some(z => Math.abs(Math.abs((z[1] || 0) - (z[2] || 0)) - v) < .005))) return false; }
+  return true;
+}
+function renderJournalFilter(){
+  const box = $('#jo-liste'); box.innerHTML = '';
+  const bf = new Map(), form = b => { if (!bf.has(b)) bf.set(b, buchungsform(b)); return bf.get(b); };
+  const liste = state.buchungen.filter(b => E.istDatum(b.datum) && !b.eb && !b.virtuell && filterTrifft(b, filter));
+  const wert = { datum: b => b.datum, text: b => norm(b.text), soll: b => form(b).sollNr || '￿', haben: b => form(b).habenNr || '￿', betrag: b => form(b).betrag }[fSort.k];
+  liste.sort((a, c) => { const x = wert(a), y = wert(c);
+    let r = typeof x === 'number' ? x - y : (x < y ? -1 : x > y ? 1 : 0);
+    if (!r) r = a.datum === c.datum ? String(a.id).localeCompare(String(c.id)) : (a.datum < c.datum ? -1 : 1);
+    return fSort.ab ? -r : r; });
+  const jahre = new Set(liste.map(b => b.datum.slice(0, 4))), summe = liste.reduce((s, b) => s + form(b).betrag, 0);
+  $('#eyebrow').textContent = 'Filter · every year · ' + liste.length + (liste.length === 1 ? ' booking' : ' bookings') + (jahre.size ? ' in ' + Array.from(jahre).sort().join(', ') : '');
+  box.appendChild(h('div', { class: 'ev-filterbar', id: 'jo-filterbar' }, FILTER_FELDER.filter(([k]) => filter[k]).map(([k, t]) => h('span', { class: 'chip' }, [t + ' ', h('b', {}, [filter[k]])]))
+    .concat([h('span', { class: 'ev-filterbar__n' }, [liste.length + (liste.length === 1 ? ' booking · ' : ' bookings · ') + tsd(summe, 2)]),
+      h('button', { type: 'button', class: 'btn btn--ghost btn--sm', id: 'jo-filter-weg', onclick: filterWeg }, ['Remove filter ', h('kbd', {}, ['Ctrl+D'])])])));
+  if (!liste.length){ box.appendChild(h('div', { class: 'card' }, [h('div', { class: 'empty' }, [h('h3', { class: 'empty__title' }, ['Nothing found']),
+    h('p', { class: 'empty__text' }, ['No booking in any year matches this filter. Ctrl+F changes it, Ctrl+D removes it.'])])])); return; }
+  const kopf = h('thead', {}, [h('tr', {}, [['datum', 'Date'], ['text', 'Text'], ['soll', 'Debit'], ['haben', 'Credit'], ['betrag', state.waehrung || 'CHF']].map(([k, t]) => {
+    const an = fSort.k === k;
+    return h('th', { class: k === 'betrag' ? 'num' : '', 'aria-sort': an ? (fSort.ab ? 'descending' : 'ascending') : null }, [
+      h('button', { type: 'button', class: 'th-sort', 'data-sort': k, title: 'Sort by ' + t.toLowerCase() + (an ? ', the other way round' : ''),
+        onclick: () => { fSort = { k, ab: an ? !fSort.ab : false }; renderJournal(); } }, [t, h('span', { html: icon('sort', 12) })])]);
+  }).concat([h('th', { class: 'a' })]))]);
+  const tb = h('tbody'); liste.forEach(b => buchungsZeilen(b, { an: b.id === bearbeitet }).forEach(tr => tb.appendChild(tr)));
+  box.appendChild(h('div', { class: 'card ev-jo ev-jo-filter' }, [h('div', { class: 'ev-scroll' }, [h('table', { class: 'table ev-buchungen' }, [kopf, tb])])]));
+}
+
 /* ---------------------------------------------------------------- the open file on screen */
 function starteApp(){
   $('#start').classList.remove('on'); $('#shell').classList.add('on');
@@ -532,7 +610,7 @@ function starteApp(){
   ST.jahr = null; ST.p = ST.c = null;
   if (state.ui.fs && state.ui.fs.jahr === state.jahr){ ST.jahr = state.jahr; ST.p = state.ui.fs.p; ST.c = state.ui.fs.c; }
   [offen, hbOffen, ktOffen].forEach(o => Object.keys(o).forEach(k => delete o[k]));
-  suche = ''; $('#jo-suche').value = '';
+  suche = ''; $('#jo-suche').value = ''; filterZu(); filter = null; fSort = { k: 'datum', ab: false };
   letztesDatum = null; frischId = null; fokusKonto = null; saGewaehlt = null; INV_JAHRE = null;
   $('#mandant').value = state.mandant || '';
   baueKontrollen(); zeigeBereich();

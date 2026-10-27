@@ -242,6 +242,16 @@
 .ev-export__what b{font-size:13px;font-weight:600;white-space:nowrap}
 .ev-export .btn{height:30px}
 .ev-tools .ev-export{margin-left:auto}
+/* the filter (Ctrl+F): the dialog's fields two by two, and the bar over the Journal while it is set */
+.ev-filter-dlg .modal{max-width:560px}
+.ev-filter{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.ev-filter .field{margin:0}
+.ev-filter__keys{margin:14px 0 0}
+.ev-filterbar{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:10px 12px;margin-bottom:var(--gap);border-radius:var(--r-control);background:var(--accent-soft)}
+.ev-filterbar .chip b{font-weight:700;color:var(--text)}
+.ev-filterbar__n{margin-left:auto;color:var(--text-2);font-size:13px;font-variant-numeric:tabular-nums}
+.ev-jo-filter{padding:0;overflow:hidden}
+@media (max-width:599px){ .ev-filter{grid-template-columns:minmax(0,1fr)} .ev-filterbar__n{margin-left:0;width:100%} }
 .ev-hb-tools{margin-top:var(--gap)}
 .ev-hb-tools__t{flex:1;font-size:13px;color:var(--text-3)}
 /* opening and closing balance around the months */

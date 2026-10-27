@@ -201,6 +201,44 @@ async function runChecks(env, fixture){
     'statements PDF: the EVEN icon on the cover and every page head, four figure cards');
   check(ohneKopf() && seitenRegeln() === 1 && /@page\{size:A4 portrait/.test($('#bericht').innerHTML), 'statements PDF: no browser header, one page rule, portrait');
 
+  /* 7f2. the filter: Ctrl+F opens it, F2 sets it, the Journal shows every year's matches as one sortable list, Ctrl+D
+     removes it and the Journal is back on its window */
+  const taste = (key, o) => { const ev = new w.KeyboardEvent('keydown', Object.assign({ key, bubbles: true, cancelable: true }, o)); (d.activeElement || d.body).dispatchEvent(ev); return ev; };
+  const wert = (sel, v) => { const el = $(sel); el.value = v; fire(el, 'input'); };
+  await tab('buchen');
+  let fev = taste('f', { ctrlKey: true });
+  check(fev.defaultPrevented && !$('#dlg-filter').hidden && d.activeElement === $('#fi-text'), 'Ctrl+F opens the filter, the cursor in Text');
+  fev = taste('f', { ctrlKey: true });
+  check(!fev.defaultPrevented && $('#dlg-filter').hidden, 'Ctrl+F in the open filter closes it and leaves the browser its own search');
+  fev = taste('d', { ctrlKey: true });
+  check(!fev.defaultPrevented, 'Ctrl+D without a filter is left to the browser');
+  taste('f', { ctrlKey: true });
+  wert('#fi-text', 'groceries'); wert('#fi-soll', '40');
+  fev = taste('F2'); await sleep(40);
+  const erwartetF = st.buchungen.filter(b => !b.eb && /groceries/i.test(b.text) && b.z.some(z => (z[1] || 0) > (z[2] || 0) && /^40/.test(z[0])));
+  const fZeilen = () => $$('#jo-liste .ev-jo-filter tbody tr[data-edit]');
+  check(fev.defaultPrevented && $('#dlg-filter').hidden && $('#p-journal').classList.contains('on') && fZeilen().length === erwartetF.length && erwartetF.length > 100,
+    'F2 sets the filter and shows the Journal: ' + fZeilen().length + ' of ' + erwartetF.length + ' bookings');
+  check(new Set(fZeilen().map(tr => tr.querySelector('td.d').textContent.slice(-4))).size === 2 && !$('#jo-liste .group') && $('#ctl').hidden,
+    'the filter covers every year (2025 and 2026), one list without months, the year controls wait');
+  check(/Text groceries/.test($('#jo-filterbar').textContent) && /Debit 40/.test($('#jo-filterbar').textContent), 'the bar over the Journal names the filter');
+  const betraege = () => fZeilen().map(tr => parseFloat(tr.querySelector('td.num').textContent.replace(/[^\d.-]/g, '')));
+  $('#jo-liste th [data-sort="betrag"]').click(); await sleep(20);
+  let bs = betraege();
+  check(bs.every((x, i) => !i || bs[i - 1] <= x) && $('#jo-liste th[aria-sort="ascending"] [data-sort="betrag"]'), 'a click on the amount sorts from small to large');
+  $('#jo-liste th [data-sort="betrag"]').click(); await sleep(20);
+  bs = betraege();
+  check(bs.every((x, i) => !i || bs[i - 1] >= x) && $('#jo-liste th[aria-sort="descending"]'), 'a second click sorts the other way round');
+  $('#jo-filter').click(); await sleep(20);
+  check(!$('#dlg-filter').hidden && $('#fi-text').value === 'groceries' && $('#fi-soll').value === '40', 'Change filter opens the dialog with the filter set');
+  wert('#fi-betrag', 'abc'); taste('Enter'); await sleep(20);
+  check(!$('#dlg-filter').hidden && $('#fi-betrag').closest('.field').classList.contains('is-error'), 'an amount that cannot be read keeps the dialog open');
+  wert('#fi-betrag', ''); wert('#fi-soll', ''); wert('#fi-text', 'Rent'); wert('#fi-datum', '2025'); taste('Enter'); await sleep(40);
+  check(fZeilen().length === 12 && $('#dlg-filter').hidden, 'Enter sets it too: text and year (12 rents in 2025)');
+  fev = taste('d', { ctrlKey: true }); await sleep(40);
+  check(fev.defaultPrevented && $('#jo-liste .group') && !$('#jo-liste .ev-jo-filter') && !$('#ctl').hidden && /2026/.test($('#eyebrow').textContent) && !/Filter/.test($('#eyebrow').textContent),
+    'Ctrl+D removes the filter: the Journal is back on its window, months and controls');
+
   /* 7g. system accounts are chosen from the chart */
   await tab('konten');
   const sys = $$('#kt-system select');

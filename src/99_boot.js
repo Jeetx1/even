@@ -37,13 +37,27 @@ Kit.initDropdowns("select.select");
       $("#jo-auf").onclick = () => { delete offen.__; $$("#jo-liste .group").forEach(g => { g.classList.add("is-open"); offen[g.dataset.monat] = true; }); };
       $("#jo-zu").onclick = () => { $$("#jo-liste .group").forEach(g => g.classList.remove("is-open")); Object.keys(offen).forEach(k => delete offen[k]); offen.__ = false; };
       $("#jo-xlsx").onclick = () => journalExcel(exportFenster()); $("#jo-pdf").onclick = () => journalPdf(exportFenster()); },
+    /* the filter dialog: F2 or Enter sets it, Escape, Cancel or a click beside it closes it */
+    () => { const hg = $("#dlg-filter");
+      $("#jo-filter").onclick = filterAuf;
+      $("#fi-ok").onclick = filterSetzen; $("#fi-abbruch").onclick = filterZu; $("#fi-zu").onclick = filterZu;
+      $("#fi-leer").onclick = () => { $$("#dlg-filter .input").forEach(i => { i.value = ""; i.closest(".field").classList.remove("is-error"); }); $("#fi-text").focus(); };
+      $("#fi-betrag").addEventListener("input", e => e.target.closest(".field").classList.remove("is-error"));
+      hg.onpointerdown = e => { if(e.target === hg) filterZu(); };
+      hg.addEventListener("keydown", e => {
+        if(e.key === "Escape"){ e.preventDefault(); e.stopPropagation(); filterZu(); }
+        else if(e.key === "F2" || (e.key === "Enter" && e.target.matches("input"))){ e.preventDefault(); filterSetzen(); }
+      }); },
     /* keys: Escape closes the sheet and the pickers (a dialog closes itself); Ctrl/Cmd + S saves (with Shift: as a new
-       file), + Enter books from anywhere on Book, + Z / Y (or Shift + Z) undo and redo outside a field */
+       file), + Enter books from anywhere on Book, + Z / Y (or Shift + Z) undo and redo outside a field; + F opens the
+       filter (in the open filter: the browser's own search), + D removes a filter that is set */
     () => { document.addEventListener("keydown", e => {
       const mod = e.ctrlKey || e.metaKey, imFeld = /^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement || {}).tagName || ""), k = (e.key || "").toLowerCase();
       if(e.key === "Escape"){ navZu(); pickerZu(); return; }
       if(!geladen || frageOffen) return;
-      if(mod && k === "s"){ e.preventDefault(); if(!e.repeat) speichern(e.shiftKey, false); }      // a held key saves once
+      if(mod && k === "f" && !e.shiftKey && !e.altKey){ if(filterOffen()) filterZu(); else { e.preventDefault(); filterAuf(); } }
+      else if(mod && k === "d" && !e.shiftKey && !e.altKey && filter){ e.preventDefault(); filterWeg(); }
+      else if(mod && k === "s"){ e.preventDefault(); if(!e.repeat) speichern(e.shiftKey, false); }      // a held key saves once
       else if(mod && e.key === "Enter" && PAGE === "buchen"){ e.preventDefault(); enter(); }
       else if(mod && !imFeld && k === "z" && !e.shiftKey){ e.preventDefault(); rueckgaengig(); }
       else if(mod && !imFeld && (k === "y" || (k === "z" && e.shiftKey))){ e.preventDefault(); wiederholen(); }
