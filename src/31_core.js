@@ -451,10 +451,12 @@ function planTag(b){
   return b.plan.nr ? 'Spread ' + b.plan.nr + '/' + b.plan.von : 'Spread';
 }
 /* the rows of one booking for the Journal and the latest bookings: a click opens it in Book, Copy fills the form */
+/* an account cell: the number with its name below, or "Split" for a side of several lines */
+const kontoZelle = nr => nr ? [nr + ' ', h('small', { title: KN[nr] || null }, [KN[nr] || 'unknown account'])] : [h('span', { class: 'chip ev-chip-sm' }, ['Split'])];
 function buchungsZeilen(b, o){
   o = o || {};
   const bf = buchungsform(b), fx = bf.einzel ? (fwText(bf.soll[0]) || fwText(bf.haben[0])) : '', tag = planTag(b);
-  const konto = nr => nr ? [nr + ' ', h('small', { title: KN[nr] || null }, [KN[nr] || 'unknown account'])] : [h('span', { class: 'chip ev-chip-sm' }, ['Split'])];
+  const konto = kontoZelle;
   const oeffne = () => ladeEntwurf(b.id);
   const kopf = h('tr', { class: 'ev-klick' + (o.an ? ' is-current' : '') + (o.frisch ? ' is-new' : ''), 'data-edit': b.id, onclick: oeffne, title: 'Open in Book' }, [
     h('td', { class: 'd' }, [dateLong(b.datum)]),
@@ -488,9 +490,9 @@ function monatsGruppe(k, offenListe, kopf, koerper){
 }
 const hinweisKarte = (art, kids) => h('div', { class: 'ev-check ev-jo-note is-' + art }, [h('span', { class: 'ev-check__i', html: icon(art === 'fehler' ? 'alert' : 'info', 12) }), h('span', {}, kids)]);
 function renderJournal(){
-  /* with a filter set: every year's matching bookings, one list; the window's controls wait until it is removed */
+  /* with a filter set: the year's matching bookings, one list; the period controls wait until it is removed */
   $('#jo-suche').closest('.ev-search').hidden = $('#jo-auf').hidden = $('#jo-zu').hidden = !!filter;
-  $('#ctl').hidden = !!filter;
+  $('#periodSel').parentElement.hidden = $('#rangeSeg').hidden = !!filter;
   $('#jo-filter span').textContent = filter ? 'Change filter' : 'Filter';
   if (filter){ renderJournalFilter(); return; }
   const w = fenster(), box = $('#jo-liste'), q = norm(suche.trim()), betragSuche = E.betragAusEingabe(suche);
@@ -528,9 +530,10 @@ function renderJournal(){
 }
 
 /* ---------------------------------------------------------------- the filter: Ctrl+F (or Filter on the Journal) opens
-   the dialog, F2, Enter or Set filter sets it; the Journal then shows every year's bookings that match, one list sorted
-   by a click on a column (again: the other way round). Ctrl+D removes it and the Journal is back on its window. In the
-   open dialog Ctrl+F closes it and leaves the browser its own search. Exports keep covering the window */
+   the dialog, F2, Enter or Set filter sets it; the Journal then shows the bookings of the year in the page head that
+   match, one list sorted by a click on a column (again: the other way round). Ctrl+D removes it and the Journal is back
+   on its window. In the open dialog Ctrl+F closes it and leaves the browser its own search. Exports keep covering the
+   window */
 const FILTER_FELDER = [['datum', 'Date'], ['text', 'Text'], ['soll', 'Debit'], ['haben', 'Credit'], ['betrag', 'Amount']];
 let filter = null, fSort = { k: 'datum', ab: false }, filterVorher = null;
 const filterOffen = () => !$('#dlg-filter').hidden;
@@ -574,29 +577,50 @@ function filterTrifft(b, f){
     if (!(Math.abs(buchungsform(b).betrag - v) < .005 || b.z.some(z => Math.abs(Math.abs((z[1] || 0) - (z[2] || 0)) - v) < .005))) return false; }
   return true;
 }
+/* what a matching booking shows: a split booking only its lines that match, each with its counter account and its own
+   amount, marked Split. One that matches as a whole (every line, or only its total) stays whole */
+function filterZeilen(b, f){
+  const bf = buchungsform(b), ganz = [{ b, bf, betrag: bf.betrag, soll: bf.sollNr, haben: bf.habenNr, text: b.text, ganz: true }];
+  if (bf.einzel) return ganz;
+  const teile = bf.teile.map(z => { const s = (z[1] || 0) > (z[2] || 0);
+    return { b, bf, z, betrag: Math.abs(E.r2((z[1] || 0) - (z[2] || 0))), soll: s ? z[0] : bf.sollNr, haben: s ? bf.habenNr : z[0], text: z[5] || b.text }; });
+  const q = f.text ? norm(f.text) : '', v = f.betrag ? Math.abs(E.betragAusEingabe(f.betrag)) : null;
+  const passt = x => (!q || [b.text, b.beleg, x.z[5]].some(t => norm(t).indexOf(q) >= 0)) && (!f.soll || (x.soll && kontoTrifft(x.soll, f.soll)))
+    && (!f.haben || (x.haben && kontoTrifft(x.haben, f.haben))) && (v === null || Math.abs(x.betrag - v) < .005);
+  const treffer = teile.filter(passt);
+  return treffer.length && treffer.length < teile.length ? treffer : ganz;
+}
+/* one line of a split booking on its own row: a click opens the booking, Copy copies it */
+const teilZeile = x => h('tr', { class: 'ev-klick' + (x.b.id === bearbeitet ? ' is-current' : ''), 'data-edit': x.b.id, onclick: () => ladeEntwurf(x.b.id), title: 'Open in Book' }, [
+  h('td', { class: 'd' }, [dateLong(x.b.datum)]),
+  h('td', { class: 't wrap-ok' }, [x.text || '–', h('span', { class: 'chip ev-chip-sm', title: 'One line of the split booking “' + (x.b.text || '') + '”, ' + tsd(x.bf.betrag, 2) }, ['Split'])]),
+  h('td', { class: 'k s' }, kontoZelle(x.soll)), h('td', { class: 'k hb' }, kontoZelle(x.haben)), h('td', { class: 'num' }, [tsd(x.betrag, 2)]),
+  h('td', { class: 'a' }, [h('button', { type: 'button', class: 'btn btn--ghost btn--sm', 'data-kopie': x.b.id, tabindex: '-1', title: 'Copy into a new booking',
+    onclick: e => { e.stopPropagation(); kopiereBuchung(x.b.id); } }, ['Copy'])])]);
 function renderJournalFilter(){
-  const box = $('#jo-liste'); box.innerHTML = '';
-  const bf = new Map(), form = b => { if (!bf.has(b)) bf.set(b, buchungsform(b)); return bf.get(b); };
-  const liste = state.buchungen.filter(b => E.istDatum(b.datum) && !b.eb && !b.virtuell && filterTrifft(b, filter));
-  const wert = { datum: b => b.datum, text: b => norm(b.text), soll: b => form(b).sollNr || '￿', haben: b => form(b).habenNr || '￿', betrag: b => form(b).betrag }[fSort.k];
+  const box = $('#jo-liste'), J = P.jahr; box.innerHTML = '';
+  $('#jo-export').textContent = fensterName();
+  const liste = [];
+  E.buchungenIn(state, J + '-01-01', J + '-12-31').filter(b => !b.virtuell && filterTrifft(b, filter)).forEach(b => liste.push(...filterZeilen(b, filter)));
+  const wert = { datum: x => x.b.datum, text: x => norm(x.text), soll: x => x.soll || '￿', haben: x => x.haben || '￿', betrag: x => x.betrag }[fSort.k];
   liste.sort((a, c) => { const x = wert(a), y = wert(c);
     let r = typeof x === 'number' ? x - y : (x < y ? -1 : x > y ? 1 : 0);
-    if (!r) r = a.datum === c.datum ? String(a.id).localeCompare(String(c.id)) : (a.datum < c.datum ? -1 : 1);
+    if (!r) r = a.b.datum === c.b.datum ? String(a.b.id).localeCompare(String(c.b.id)) : (a.b.datum < c.b.datum ? -1 : 1);
     return fSort.ab ? -r : r; });
-  const jahre = new Set(liste.map(b => b.datum.slice(0, 4))), summe = liste.reduce((s, b) => s + form(b).betrag, 0);
-  $('#eyebrow').textContent = 'Filter · every year · ' + liste.length + (liste.length === 1 ? ' booking' : ' bookings') + (jahre.size ? ' in ' + Array.from(jahre).sort().join(', ') : '');
+  const summe = liste.reduce((s, x) => s + x.betrag, 0);
+  $('#eyebrow').textContent = 'Filter · ' + J + ' · ' + liste.length + (liste.length === 1 ? ' booking' : ' bookings');
   box.appendChild(h('div', { class: 'ev-filterbar', id: 'jo-filterbar' }, FILTER_FELDER.filter(([k]) => filter[k]).map(([k, t]) => h('span', { class: 'chip' }, [t + ' ', h('b', {}, [filter[k]])]))
     .concat([h('span', { class: 'ev-filterbar__n' }, [liste.length + (liste.length === 1 ? ' booking · ' : ' bookings · ') + tsd(summe, 2)]),
       h('button', { type: 'button', class: 'btn btn--ghost btn--sm', id: 'jo-filter-weg', onclick: filterWeg }, ['Remove filter ', h('kbd', {}, ['Ctrl+D'])])])));
   if (!liste.length){ box.appendChild(h('div', { class: 'card' }, [h('div', { class: 'empty' }, [h('h3', { class: 'empty__title' }, ['Nothing found']),
-    h('p', { class: 'empty__text' }, ['No booking in any year matches this filter. Ctrl+F changes it, Ctrl+D removes it.'])])])); return; }
+    h('p', { class: 'empty__text' }, ['No booking in ' + J + ' matches this filter. Another year in the head of the page, Ctrl+F changes the filter, Ctrl+D removes it.'])])])); return; }
   const kopf = h('thead', {}, [h('tr', {}, [['datum', 'Date'], ['text', 'Text'], ['soll', 'Debit'], ['haben', 'Credit'], ['betrag', state.waehrung || 'CHF']].map(([k, t]) => {
     const an = fSort.k === k;
     return h('th', { class: k === 'betrag' ? 'num' : '', 'aria-sort': an ? (fSort.ab ? 'descending' : 'ascending') : null }, [
       h('button', { type: 'button', class: 'th-sort', 'data-sort': k, title: 'Sort by ' + t.toLowerCase() + (an ? ', the other way round' : ''),
         onclick: () => { fSort = { k, ab: an ? !fSort.ab : false }; renderJournal(); } }, [t, h('span', { html: icon('sort', 12) })])]);
   }).concat([h('th', { class: 'a' })]))]);
-  const tb = h('tbody'); liste.forEach(b => buchungsZeilen(b, { an: b.id === bearbeitet }).forEach(tr => tb.appendChild(tr)));
+  const tb = h('tbody'); liste.forEach(x => (x.ganz ? buchungsZeilen(x.b, { an: x.b.id === bearbeitet }) : [teilZeile(x)]).forEach(tr => tb.appendChild(tr)));
   box.appendChild(h('div', { class: 'card ev-jo ev-jo-filter' }, [h('div', { class: 'ev-scroll' }, [h('table', { class: 'table ev-buchungen' }, [kopf, tb])])]));
 }
 
