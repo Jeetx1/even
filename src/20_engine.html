@@ -78,11 +78,6 @@ function imJahr(state, J){
 function alle(state){ return imJahr(state, state.jahr); }
 function grp(ix, nr){ const k = ix.km[nr]; return k ? ix.gm[k.grp] : null; }
 // Die Geldfluss-Zuordnung hängt am Konto. Fehlt sie dort, gilt die der Gruppe.
-function cfVon(ix, nr){
-  const k = ix.km[nr]; if(!k) return null;
-  if(k.cf) return k.cf;
-  const g = ix.gm[k.grp]; return g ? g.cf : null;
-}
 function cfKonto(ix, k){ if(k.cf) return k.cf; const g = ix.gm[k.grp]; return g ? g.cf : null; }
 function istER(g){ return !!g && g.s === "E"; }
 function istBilanz(g){ return !!g && (g.s === "A" || g.s === "P"); }
@@ -304,23 +299,6 @@ function hauptbuch(state, ix, nr, von, bis){
     summeHaben:r2(zeilen.reduce((a,z)=>a+z.haben,0))};
 }
 
-/* ---- Jahresreihe für die Übersicht ---------------------------------- */
-function jahresreihe(state, ix){
-  const j = state.jahr, kl = klassierung(state, ix), reihe = [];
-  for(let m=1;m<=12;m++){
-    const von = j+"-"+String(m).padStart(2,"0")+"-01";
-    const bis = letzterTag(j,m);
-    const er = erfolg(state, ix, von, bis, kl);
-    reihe.push({m:m, name:MONATE[m-1], kurz:MONATE[m-1].slice(0,3),
-      ertrag:er.ertrag, aufwand:er.aufwand, ergebnis:er.ergebnis,
-      reinvermoegen:reinvermoegen(state, ix, bis)});
-  }
-  const jahr = erfolg(state, ix, j+"-01-01", j+"-12-31", kl);
-  return {monate:reihe, ertrag:jahr.ertrag, aufwand:jahr.aufwand, ergebnis:jahr.ergebnis,
-          reinvermoegenStart:reinvermoegen(state, ix, j+"-01-01", true),
-          reinvermoegenEnde:reinvermoegen(state, ix, j+"-12-31")};
-}
-
 /* ---- Flachsicht für Vergleichsspalten -------------------------------- */
 function flachBilanz(b){
   const m = {};
@@ -347,11 +325,6 @@ function flachErfolg(er){
   m["ertrag"] = er.ertrag; m["aufwand"] = er.aufwand;
   return m;
 }
-function jahreImBestand(state){
-  const j = {};
-  (state.buchungen||[]).forEach(b=> j[b.datum.slice(0,4)] = true);
-  return Object.keys(j).sort();
-}
 
 /* ---- Perioden ------------------------------------------------------- */
 function letzterTag(j,m){
@@ -373,10 +346,9 @@ return {alle:alle, imJahr:imJahr, eroeffnung:eroeffnung, jahreMitBuchungen:jahre
         r2:r2, ctx:ctx, konten:konten, istER:istER, istBilanz:istBilanz,
         saldoPer:saldoPer, saldoStart:saldoStart, bewegung:bewegung, buchungenIn:buchungenIn,
         kontrolle:kontrolle, bilanz:bilanz, erfolg:erfolg, klassierung:klassierung,
-        hauptbuch:hauptbuch, reinvermoegen:reinvermoegen, jahresreihe:jahresreihe,
-        cfVon:cfVon, cfKonto:cfKonto, fwSaldoPer:fwSaldoPer, neubewertung:neubewertung,
+        hauptbuch:hauptbuch, reinvermoegen:reinvermoegen,
+        cfKonto:cfKonto, fwSaldoPer:fwSaldoPer, neubewertung:neubewertung,
         flachBilanz:flachBilanz, flachErfolg:flachErfolg,
-        jahreImBestand:jahreImBestand,
         perioden:perioden, letzterTag:letzterTag};
 })();
 if(typeof module !== "undefined"){ module.exports = ENGINE; }

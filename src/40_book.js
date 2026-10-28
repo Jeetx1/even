@@ -208,7 +208,9 @@ function pruefe(){
     if (Math.abs(diff) >= .005) p.push(['fehler', 'Debit and credit differ by ' + tsd(diff, 2) + '.']);
   }
   if (!(entwurf.text || '').trim()) p.push(['warn', 'Without a text the booking is hard to find later.']);
-  D.forEach(z => { const k = ix.km[z.k]; if (k && k.wkz && (z.s || z.h) && !(z.fw > 0)) p.push(['warn', 'No ' + k.wkz + ' amount for ' + k.nr + '; its currency balance will be off.']); });
+  D.forEach(z => { const k = ix.km[z.k]; if (!k || !k.wkz || !(z.s || z.h)) return;
+    if (!(z.fw > 0)) p.push(['warn', 'No ' + k.wkz + ' amount for ' + k.nr + '; its currency balance will be off.']);
+    else if (!(z.kurs > 0)) p.push(['warn', 'No rate for the ' + k.wkz + ' amount of ' + k.nr + ': without one the ' + k.wkz + ' amount is not kept.']); });
   const v = verteilungsVorschau(D);
   if (v){ if (!v.ok) v.fehler.forEach(x => p.push(['fehler', x])); else v.warnungen.forEach(x => p.push(['warn', x])); }
   const fehler = p.some(x => x[0] === 'fehler') || !soll || Math.abs(diff) >= .005;
@@ -257,9 +259,9 @@ function buchenIntern(r){
     const id = bearbeitet;
     ok = aendere('Booking changed', () => {
       const i = state.buchungen.findIndex(b => b.id === id), alt = state.buchungen[i];
-      const neu = Object.assign({ id }, kopf, { z: zeilen }); if (alt.beleg) neu.beleg = alt.beleg;
-      if (alt.eb) neu.eb = true; if (alt.plan) neu.plan = alt.plan;
-      state.buchungen[i] = neu;
+      if (!alt) throw new Error('this booking is no longer in the file');
+      // what the form does not show (voucher, opening flag, plan, fields of other versions) stays as it was
+      state.buchungen[i] = Object.assign({}, alt, kopf, { id, z: zeilen, beleg: alt.beleg || '' });
     });
     text = 'Saved';
   } else if (r.vt && r.vt.ok){
@@ -588,24 +590,29 @@ function renderZeilenmodus(fokus){
   box.appendChild(h('div', { class: 'ev-lines__head' }, [h('span', {}, ['Account']), h('span', { class: 'r' }, ['Debit']), h('span', { class: 'r' }, ['Credit']), h('span', {}, ['Line text']), h('span')]));
   entwurf.z.forEach((z, i) => {
     const k = ix.km[z.k], wkz = k && k.wkz;
+    if (wkz && !z.kurs) z.kurs = String(state.kurse[wkz] || '');            // the rate shown is the rate booked
     const feld = (f, attrs) => h('input', Object.assign({ class: 'input' + (f === 'k' || f === 't' ? '' : ' num'), 'data-zl': i, 'data-f': f, autocomplete: 'off' }, attrs));
     box.appendChild(h('div', { class: 'ev-lines__row' }, [
       h('div', { class: 'field' + (z.k && !k ? ' is-error' : '') }, [feld('k', { value: k ? z.k + ' ' + k.name : z.k, placeholder: 'Account', 'aria-label': 'Account, line ' + (i + 1) }),
         h('span', { class: 'field__hint ev-kinfo', 'data-zlinfo': i }),
-        wkz ? h('div', { class: 'ev-lines__fx' }, [feld('fw', { value: z.fw, placeholder: wkz, 'aria-label': 'Foreign amount' }), feld('kurs', { value: z.kurs || state.kurse[wkz] || '', placeholder: 'Rate', 'aria-label': 'Rate' })]) : null]),
+        wkz ? h('div', { class: 'ev-lines__fx' }, [feld('fw', { value: z.fw, placeholder: wkz, 'aria-label': 'Foreign amount' }), feld('kurs', { value: z.kurs, placeholder: 'Rate', 'aria-label': 'Rate' })]) : null]),
       feld('s', { value: z.s, inputmode: 'decimal', placeholder: 'Debit', 'aria-label': 'Debit, line ' + (i + 1) }),
       feld('h', { value: z.h, inputmode: 'decimal', placeholder: 'Credit', 'aria-label': 'Credit, line ' + (i + 1) }),
       feld('t', { value: z.t, placeholder: 'optional', 'aria-label': 'Line text, line ' + (i + 1) }),
       h('button', { type: 'button', class: 'btn btn--ghost btn--sm btn--icon', tabindex: '-1', 'aria-label': 'Remove line ' + (i + 1), html: icon('x', 14),
         onclick: () => { if (entwurf.z.length > 2) entwurf.z.splice(i, 1); else entwurf.z[i] = leereZeile(); renderZeilenmodus(); aktualisiere(); } })]));
   });
-  box.appendChild(h('button', { type: 'button', class: 'btn btn--ghost btn--sm', onclick: () => { entwurf.z.push(leereZeile()); renderZeilenmodus({ i: entwurf.z.length - 1, f: 'k' }); aktualisiere(); } }, ['Add line']));
+  box.appendChild(h('button', { type: 'button', class: 'btn btn--ghost btn--sm', id: 'bu-zeile-neu', onclick: () => { entwurf.z.push(leereZeile()); renderZeilenmodus({ i: entwurf.z.length - 1, f: 'k' }); aktualisiere(); } }, ['Add line']));
   $$('#bu-zeilen input').forEach(inp => {
     const i = +inp.dataset.zl, f = inp.dataset.f;
     if (f === 'k'){
-      kontoWahl(inp, k => { const z = entwurf.z[i]; if (!z) return; const warFW = !!(ix.km[z.k] || {}).wkz;
+      /* a foreign-currency account brings its amount and rate fields (the row is drawn again when they come or go) */
+      kontoWahl(inp, k => { const z = entwurf.z[i]; if (!z) return; const hatFW = !!$('[data-zl="' + i + '"][data-f="fw"]');
         z.k = k ? k.nr : ''; fokusKonto = z.k || fokusKonto; inp.value = k ? k.nr + ' ' + k.name : ''; inp.closest('.field').classList.remove('is-error');
-        if (!!(k || {}).wkz !== warFW) renderZeilenmodus({ i, f: 's' }); else kontoInfo(z.k, $('[data-zlinfo="' + i + '"]'));
+        if (k && k.wkz && !z.kurs) z.kurs = String(state.kurse[k.wkz] || '');
+        if (!!(k || {}).wkz !== hatFW){ renderZeilenmodus();                   // the cursor after the key's own move: the foreign amount, else debit
+          setTimeout(() => { const el = $('[data-zl="' + i + '"][data-f="' + (k && k.wkz ? 'fw' : 's') + '"]'); if (el) el.focus(); }); }
+        else kontoInfo(z.k, $('[data-zlinfo="' + i + '"]'));
         aktualisiere(); renderVerlauf(); }, () => (entwurf.z[i] || {}).k);
       inp.addEventListener('input', () => { const t = inp.value.trim().split(/\s+/)[0]; entwurf.z[i].k = /^\d[\d.]*$/.test(t) ? t : inp.value.trim(); aktualisiere(); });
       kontoInfo(entwurf.z[i].k, $('[data-zlinfo="' + i + '"]'));
@@ -917,15 +924,15 @@ function initBuchen(){
   hauptKonto('#bu-haben', 'haben');
   textVorschlag($('#bu-text'));
   ['#bu-datum', '#bu-text', '#bu-betrag'].forEach(s => $(s).addEventListener('keydown', e => { if (e.key === 'Enter' && !e.defaultPrevented){ e.preventDefault(); enter(); } }));
-  /* Tab stays in the booking card: out of the last field to Book, then through the card's buttons (Copy, Clear, Delete
-     where shown) and round to the first field; Shift+Tab goes back the same way. Safari (iPad, iPhone, Mac) skips buttons
+  /* Tab stays in the booking card: out of the last field to Book (in Lines first to Add line), then through the card's
+     buttons (Copy, Clear, Delete where shown) and round to the first field; Shift+Tab goes back the same way. Safari (iPad, iPhone, Mac) skips buttons
      on Tab, so the focus left the card for the recent bookings far down the page and scrolled there */
   const maske = $('#maske');
   const sichtbar = el => { for (let x = el; x && x !== maske; x = x.parentElement) if (x.hidden || getComputedStyle(x).display === 'none') return false; return true; };
   maske.addEventListener('keydown', e => {
     if (e.key !== 'Tab' || e.defaultPrevented) return;
     const felder = $$('input:not([type="hidden"]), select, textarea', maske).filter(el => el.tabIndex >= 0 && !el.disabled && sichtbar(el));
-    const knoepfe = $$('.ev-actions .btn', maske).filter(el => !el.disabled && sichtbar(el));
+    const knoepfe = $$('#bu-zeile-neu, .ev-actions .btn', maske).filter(el => !el.disabled && sichtbar(el));     // Lines: Add line first
     const zu = el => { if (!el) return; e.preventDefault(); el.focus(); };
     const k = knoepfe.indexOf(e.target);
     if (k >= 0) zu(e.shiftKey ? (k > 0 ? knoepfe[k - 1] : felder[felder.length - 1]) : (k < knoepfe.length - 1 ? knoepfe[k + 1] : felder[0]));

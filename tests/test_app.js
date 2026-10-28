@@ -32,13 +32,17 @@ function fakeIDB(speicher){
     req.result = { createObjectStore(){}, transaction: () => ({ objectStore: () => ({
       get(k){ const r = {}; setTimeout(() => { r.result = kv.get(k); if (r.onsuccess) r.onsuccess(); }); return r; },
       put(v, k){ const r = {}; kv.set(k, JSON.parse(JSON.stringify(v))); setTimeout(() => { if (r.onsuccess) r.onsuccess(); }); return r; },
+      getAllKeys(){ const r = {}; setTimeout(() => { r.result = Array.from(kv.keys()); if (r.onsuccess) r.onsuccess(); }); return r; },
       delete(k){ kv.delete(k); return {}; } }) }) };
     if (req.onupgradeneeded) req.onupgradeneeded(); if (req.onsuccess) req.onsuccess(); }); return req; } };
 }
 
+/* the working copies in a simulated IndexedDB: one per window ("arbeitskopie:<window>"; "arbeitskopie" from 27.7) */
+const kopien = sp => Array.from(((sp || {}).buchhaltung || new Map()).keys()).filter(k => /^arbeitskopie/.test(k));
+const kopie = sp => { const k = kopien(sp)[0]; return k ? sp.buchhaltung.get(k) : null; };
 function boot(o){
   o = o || {};
-  const errors = [], blobs = [], names = [], sw = [], geteilt = [];
+  const errors = [], blobs = [], names = [], sw = [], geteilt = [], meineLocks = [];
   const vc = new VirtualConsole();
   /* jsdom cannot parse some modern CSS of the Design Lab kit: not an app error */
   vc.on('jsdomError', e => { if (!/Not implemented|Could not parse CSS stylesheet/.test(e.message)) errors.push(e.message); });
@@ -65,21 +69,28 @@ function boot(o){
       Object.defineProperty(w.navigator, 'serviceWorker', { configurable: true,
         value: { controller: null, register: u => { sw.push(u); return Promise.resolve({}); }, addEventListener(){} } });
       if (o.idb) w.indexedDB = fakeIDB(o.idb);
-      /* a computer with file pickers (o.oeffne: the file the open picker returns) and, with o.ordner, Save to folder */
+      /* Web Locks shared by the windows of one browser (o.locks: a Set of held names); a window that is closed or
+         crashes releases its own (env.freigeben) */
+      if (o.locks) Object.defineProperty(w.navigator, 'locks', { configurable: true, value: {
+        request: (n, f) => { o.locks.add(n); meineLocks.push(n); return Promise.resolve().then(f); },
+        query: async () => ({ held: Array.from(o.locks).map(name => ({ name })) }) } });
+      /* a computer with file pickers (o.oeffne: the file the open picker returns; o.speichereIn: the file the save picker
+         returns, else a new one) and, with o.ordner, Save to folder */
       if (o.oeffne){
         w.showOpenFilePicker = async () => [o.oeffne];
-        w.showSaveFilePicker = async x => { const f = fakeFile(x.suggestedName); if (o.ordner) o.ordner.kids.set(f.name, f); return f; };
+        w.showSaveFilePicker = async x => { if (o.speichereIn) return o.speichereIn; const f = fakeFile(x.suggestedName); if (o.ordner) o.ordner.kids.set(f.name, f); return f; };
       }
       if (o.ordner) w.showDirectoryPicker = async () => o.ordner;
       /* an iPad: no file pickers, touch points and the share sheet (o.teilen: 'ok', or 'zu' when it is closed) */
       if (o.teilen){
         Object.defineProperty(w.navigator, 'maxTouchPoints', { configurable: true, value: 5 });
         w.navigator.canShare = x => !!(x && x.files && x.files.length);
-        w.navigator.share = async x => { if (o.teilen === 'zu') throw Object.assign(new Error('closed'), { name: 'AbortError' }); geteilt.push(x.files[0]); };
+        w.navigator.share = async x => { if (o.teilen === 'zu') throw Object.assign(new Error('closed'), { name: 'AbortError' });
+          if (o.teilen === 'nein') throw Object.assign(new Error('Not allowed'), { name: 'NotAllowedError' }); geteilt.push(x.files[0]); };
       }
     }
   });
-  return { dom, w: dom.window, d: dom.window.document, errors, blobs, names, sw, geteilt };
+  return { dom, w: dom.window, d: dom.window.document, errors, blobs, names, sw, geteilt, freigeben: () => meineLocks.forEach(n => o.locks.delete(n)) };
 }
 /* jsdom's Blob has no text()/arrayBuffer(): read it with the window's FileReader */
 const readBlob = (env, b, bin) => new Promise((res, rej) => { const fr = new env.w.FileReader();
@@ -275,8 +286,8 @@ function harness(env){
     const m7 = e7.d.getElementById('mandant'); m7.value = 'Renamed person'; m7.dispatchEvent(new e7.w.Event('change', { bubbles: true })); await sleep(30);
     Object.defineProperty(e7.d, 'hidden', { configurable: true, get: () => true });
     e7.d.dispatchEvent(new e7.w.Event('visibilitychange')); await sleep(80);
-    const ak = speicher.buchhaltung && speicher.buchhaltung.get('arbeitskopie');
-    check(!!ak && ak.daten && ak.daten.mandant === 'Renamed person', 'going to the background keeps a working copy of the unsaved changes');
+    const ak = kopie(speicher);
+    check(!!ak && ak.daten && ak.daten.mandant === 'Renamed person' && /^arbeitskopie:\w+$/.test(kopien(speicher)[0]), 'going to the background keeps a working copy of the unsaved changes (this window’s own)');
     const e8 = boot({ idb: speicher }); await sleep(120);
     const weiter = e8.d.getElementById('s-weiter');
     check(!!weiter && /Restore unsaved changes/.test(weiter.textContent), 'the start screen offers the unsaved changes');
@@ -288,10 +299,14 @@ function harness(env){
       inp.onchange(); await sleep(120); }
     check(frageTitel(e8) === 'Drop the unsaved changes?', 'opening another file over them asks first (after the choice)');
     if (knopf(e8, 'Cancel')) knopf(e8, 'Cancel').click(); await sleep(40);
-    if (weiter) weiter.click(); await sleep(200); await wegklicken(e8);
+    const vorRestore = kopien(speicher)[0];
+    if (weiter) weiter.click(); await sleep(60);
+    check(kopien(speicher).length === 1 && kopien(speicher)[0] !== vorRestore && kopie(speicher).daten.mandant === 'Renamed person',
+      'Restore: this window keeps them at once under its own name, then the old copy goes (never a moment without one)');
+    await sleep(140); await wegklicken(e8);
     check(e8.d.getElementById('mandant').value === 'Renamed person' && e8.d.getElementById('speichern').textContent.trim() === 'Save', 'Restore brings them back, Save blinks');
     e8.d.getElementById('speichern').click(); await sleep(400);
-    check(!speicher.buchhaltung.get('arbeitskopie'), 'after a save the working copy is gone');
+    check(!kopien(speicher).length, 'after a save the working copy is gone');
 
     /* 4. one save at a time (build .4), with Save to folder: Save clicked twice on a new day, a change made while saving */
     const app9 = fakeDir('EVEN'), bkp9 = fakeDir('02 BACKUP'); app9.kids.set('02 BACKUP', bkp9);
@@ -314,6 +329,250 @@ function harness(env){
     e9.d.getElementById('speichern').click(); await sleep(500);
     check(!frageTitel(e9) && heute9() === 'Changed while saving' && e9.d.getElementById('speichern').textContent.trim() === 'Saved', 'the next save goes straight into today’s file, with the change');
     env.errors.push(...e5.errors, ...e6.errors, ...e7.errors, ...e8.errors, ...e9.errors);
+  }
+
+  /* Final review 28.10.2026: every finding of the audit, as it was found (each of these failed on build 2026-10-27.7) */
+  {
+    /* typing into a missing field never crashes the run: its step fails and the next ones still run */
+    const T = e => { const d = e.d, $ = s => d.querySelector(s), $$ = s => Array.from(d.querySelectorAll(s));
+      const fire = (el, typ, init) => el.dispatchEvent(typ === 'keydown' ? new e.w.KeyboardEvent('keydown', Object.assign({ bubbles: true, cancelable: true }, init)) : new e.w.Event(typ, { bubbles: true }));
+      return { d, $, $$, fire, st: () => e.w.__buha.state, E: e.w.__buha.E,
+        tippe: (el, v) => { if (typeof el === 'string') el = $(el); if (!el) return d.createElement('input'); el.focus(); el.value = v; fire(el, 'input'); return el; },
+        frage: () => $('#dlg-frage').classList.contains('on') ? $('#fr-titel').textContent : '',
+        knopf: t => $$('#dlg-frage.on #fr-knoepfe button').find(b => b.textContent === t),
+        modal: t => $$('.overlay:not(.is-closing) .modal__actions button').find(b => b.textContent === t),
+        meldung: () => $('#meldungen').textContent, leeren: () => $$('#meldungen .toast').forEach(t => t.remove()),
+        weg: async () => { for (let k = 0; k < 2; k++){ const q = $('#dlg-frage.on #fr-knoepfe button'); if (q){ q.click(); await sleep(60); } } },
+        seite: async id => { $('#nav button[data-tab="' + id + '"]').click(); await sleep(60); },
+        nenne: v => { const m = $('#mandant'); m.value = v; fire(m, 'change'); },
+        knopfText: () => $('#speichern').textContent.trim(),
+        saldo: (nr, bis) => Math.round((e.w.__buha.E.saldoPer(e.w.__buha.state, bis)[nr] || 0) * 100) / 100 }; };
+    const offen = async (e, fx, name) => { const h = harness(e); await h.openJson(JSON.stringify(fx), name || '2026-10-01_EVEN.json'); await sleep(120); await T(e).weg(); return T(e); };
+    /* a laptop bought on 10.03.2025 on 1500, contra 1509, expense 6801, 36 months; 2025's ten months booked (666.70) */
+    const mitLaptop = (V, zu) => { const fx = makeFixture(V);
+      fx.buchungen.push({ id: 'fa1', datum: '2025-03-10', beleg: '', text: 'Laptop', z: [['1500', 2400, 0], ['1020', 0, 2400]] });
+      for (let i = 0; i < 10; i++){ const m = 3 + i, ym = '2025-' + String(m).padStart(2, '0');
+        fx.buchungen.push({ id: 'dp' + i, datum: ym + '-' + new Date(Date.UTC(2025, m, 0)).getUTCDate(), beleg: '', text: 'Laptop, depreciation (' + (i + 1) + '/36)',
+          z: [['6801', 66.67, 0], ['1509', 0, 66.67]], plan: { id: 'a1', rolle: 'abschreibung', ab: i + 1, nr: i + 1, von: 36, monat: ym } }); }
+      fx.anlagen = [{ id: 'a1', text: 'Laptop', konto: '1500', wb: '1509', aufwand: '6801', datum: '2025-03-10', start: '2025-03', ab: '2025-03', monate: 36, kosten: 2400, restwert: 0 }];
+      if (zu) fx.abgeschlossen = [2025];
+      return fx; };
+    const alle = [];
+
+    /* 1. a fixed asset corrected below what a closed year already depreciated: refused with the reason, never a
+       negative depreciation (27.7: twelve negative bookings, then every Save failed) */
+    { const e = boot(); alle.push(e); await sleep(50); const t = await offen(e, mitLaptop(e.w.VORLAGE, true));
+      e.w.__buha.anlageDialog({ id: 'a1' }); await sleep(60);
+      t.tippe('#an-kosten', '240'); await sleep(20);
+      const ok = t.modal('Save and rebook');
+      check(ok && ok.disabled && /Already depreciated: 666\.70/.test(t.$('.ev-an-preview').textContent),
+        'fixed asset: a cost below the depreciation of the closed year is refused, with the reason');
+      check(!t.st().buchungen.some(b => b.z.some(z => z[1] < 0 || z[2] < 0)), 'fixed asset: no booking with a negative amount');
+      const zu = t.modal('Cancel'); if (zu) zu.click(); await sleep(250);
+      /* 2. removing it from the register works although 2025 is closed; the closed bookings stay as they are */
+      await t.seite('sachanlagen');
+      t.$('#sa-register button[aria-label^="Remove"]').click(); await sleep(60);
+      check(/booking.? in closed years stay as they are/.test(t.$('#fr-text').textContent), 'removing an asset: the question says the closed years stay as they are');
+      const wahl = t.knopf('Remove') || t.knopf('Keep the bookings'); if (wahl) wahl.click(); await sleep(80);
+      check(!(t.st().anlagen || []).length && t.st().buchungen.filter(b => b.plan && b.plan.id === 'a1').length === 10 && !/Not done/.test(t.meldung()),
+        'an asset with depreciation in a closed year can be removed from the register; its closed bookings are untouched');
+    }
+    /* 3. a sold asset: no Edit (27.7: editing it rebooked the depreciation, not the sale; 1509 kept a balance) */
+    { const e = boot(); alle.push(e); await sleep(50); const t = await offen(e, mitLaptop(e.w.VORLAGE, false));
+      await t.seite('sachanlagen');
+      t.$$('#sa-register button').find(b => b.textContent === 'Edit').click(); await sleep(60);
+      t.modal('Save and rebook').click(); await sleep(250);
+      t.$$('#sa-register button').find(b => b.textContent === 'Sell').click(); await sleep(60);
+      t.tippe('#ab-datum', '30.06.2026'); t.tippe('#ab-erloes', '500'); await sleep(20);
+      t.modal('Book the disposal').click(); await sleep(250);
+      check(t.saldo('1500', '2026-12-31') === 0 && t.saldo('1509', '2026-12-31') === 0, 'sold: asset and contra account at zero');
+      check(!t.$$('#sa-register button').some(b => b.textContent === 'Edit' || b.textContent === 'Sell'), 'a sold asset has no Edit and no Sell');
+      t.leeren(); e.w.__buha.anlageDialog({ id: 'a1' }); await sleep(60);
+      check(!t.modal('Save and rebook') && /is sold/.test(t.meldung()), 'a sold asset’s dialog does not open: its schedule stays as it was sold');
+    }
+    /* 4. the closed-year guard: a closed year's closing never changes while it is closed (27.7: removing the imported
+       closing changed the closed 2025), and years close and reopen in order */
+    { const e = boot(); alle.push(e); await sleep(50);
+      const fx = makeFixture(e.w.VORLAGE); fx.buchungen = fx.buchungen.filter(b => !b.eb);
+      fx.vergleichsjahre = [{ jahr: 2024, quelle: 'Import', importiert: '2025-01-05', salden: { '1020': 6200, '1021': 15000, '1000': 300, '2800': -21500 } }];
+      fx.abgeschlossen = [2025];
+      const t = await offen(e, fx);
+      const vor = t.saldo('1021', '2025-12-31');
+      await t.seite('vergleich'); t.leeren();
+      t.$$('#vg-liste button').find(b => b.textContent === 'Remove').click(); await sleep(60);
+      if (t.knopf('Remove')) t.knopf('Remove').click(); await sleep(80);
+      check(t.st().vergleichsjahre.length === 1 && t.saldo('1021', '2025-12-31') === vor && /closing of 2025, a closed year/.test(t.meldung()),
+        'closed 2025: removing the imported closing it opens from is refused (' + vor + ' stays)');
+      await t.seite('konten'); t.leeren();
+      const gv = t.$('#kt-system select[aria-label="Equity at the beginning"]'), anderes = Array.from(gv.options).find(o => o.value && o.value !== '2800');
+      gv.value = anderes.value; t.fire(gv, 'change'); await sleep(40);
+      check(t.st().einstellungen.gewinnvortrag === '2800' && /closed year/.test(t.meldung()), 'closed 2025: another equity account for the opening is refused');
+      t.leeren();
+      const g1021 = t.$('select[aria-label="Group of 1021"]'), erG = e.w.VORLAGE.gruppen.find(g => g.s === 'E').c;
+      g1021.value = erG; t.fire(g1021, 'change'); await sleep(40);
+      check(E_grp(t, '1021') !== erG && /closed year/.test(t.meldung()), 'closed 2025: moving one of its accounts into the income statement is refused');
+      await t.seite('buchen'); t.leeren();
+      t.tippe('#bu-datum', '14.10.2026'); t.tippe('#bu-text', 'After a closed year'); t.tippe('#bu-betrag', '10');
+      t.fire(t.tippe('#bu-soll', '4000'), 'keydown', { key: 'Tab' }); t.fire(t.tippe('#bu-haben', '1020'), 'keydown', { key: 'Tab' }); await sleep(10);
+      t.$('#bu-ok').click(); await sleep(60);
+      check(t.st().buchungen.some(b => b.text === 'After a closed year') && !/Not done/.test(t.meldung()), 'a booking in 2026, after the closed 2025, goes in as always');
+      await t.seite('vergleich');
+      const jahrKnopf = (j, txt) => t.$$('#vg-jahre tr').filter(tr => (tr.querySelector('td b') || {}).textContent === String(j)).map(tr => Array.from(tr.querySelectorAll('button')).find(b => b.textContent === txt))[0];
+      jahrKnopf(2026, 'Close year').click(); await sleep(60); { const b = t.$$('#dlg-frage.on #fr-knoepfe button').pop(); if (b) b.click(); } await sleep(80);
+      check(t.st().abgeschlossen.join() === '2025,2026', '2026 closes once 2025 is closed');
+      t.leeren(); jahrKnopf(2025, 'Reopen').click(); await sleep(60);
+      check(!t.frage() && t.st().abgeschlossen.join() === '2025,2026' && /Reopen 2026 first/.test(t.meldung()), 'reopening 2025 while 2026 is closed: reopen 2026 first');
+      jahrKnopf(2026, 'Reopen').click(); await sleep(60); if (t.knopf('Reopen')) t.knopf('Reopen').click(); await sleep(80);
+      jahrKnopf(2025, 'Reopen').click(); await sleep(60); if (t.knopf('Reopen')) t.knopf('Reopen').click(); await sleep(80);
+      t.leeren(); jahrKnopf(2026, 'Close year').click(); await sleep(60);
+      check(!t.frage() && !t.st().abgeschlossen.length && /Close 2025 first/.test(t.meldung()), 'closing 2026 while 2025 is open: close 2025 first');
+      /* 5. an account used only by an imported closing cannot be deleted */
+      const frei = e.w.VORLAGE.konten.map(k => k[0]).find(nr => !t.st().buchungen.some(b => b.z.some(z => z[0] === nr)) && !Object.values(t.st().einstellungen).includes(nr) && /^1/.test(nr) && !['1020', '1021', '1000'].includes(nr));
+      if (!t.st().vergleichsjahre.length) t.st().vergleichsjahre.push(fx.vergleichsjahre[0]);
+      t.st().vergleichsjahre[0].salden[frei] = 5;
+      await t.seite('konten');
+      check(!t.$('button[aria-label="Delete account ' + frei + '"]') && t.$$('.ev-used').some(x => /imported closing 2024/.test(x.title)), 'an account used only by an imported closing cannot be deleted (' + frei + ')');
+    }
+    function E_grp(t, nr){ const k = t.st().konten.find(x => x[0] === nr); return k && k[2]; }
+    /* 6. Lines mode with a foreign-currency account: its fields appear when the account is typed, the rate shown is the
+       rate booked (27.7: the USD amount was dropped) */
+    { const e = boot(); alle.push(e); await sleep(50); const t = await offen(e, makeFixture(e.w.VORLAGE));
+      await t.seite('buchen');
+      t.$('#bu-modus button[data-modus="zeilen"]').click(); await sleep(40);
+      t.tippe('#bu-text', 'USD in lines');
+      t.fire(t.tippe('[data-zl="0"][data-f="k"]', '1020.2'), 'keydown', { key: 'Tab' }); await sleep(20);
+      check(!!t.$('[data-zl="0"][data-f="fw"]') && t.$('[data-zl="0"][data-f="kurs"]').value === '0.88' && e.d.activeElement === t.$('[data-zl="0"][data-f="fw"]'),
+        'Lines: a USD account typed in brings its amount and rate fields, the cursor in the USD amount');
+      t.tippe('[data-zl="0"][data-f="fw"]', '100'); await sleep(10);
+      t.fire(t.tippe('[data-zl="1"][data-f="k"]', '1020'), 'keydown', { key: 'Tab' }); await sleep(20);
+      t.tippe('[data-zl="1"][data-f="h"]', '88'); await sleep(10);
+      t.$('#bu-ok').click(); await sleep(80);
+      const b = t.st().buchungen.find(x => x.text === 'USD in lines'), z = b && b.z.find(x => x[0] === '1020.2');
+      check(z && z[1] === 88 && z[3] === 100 && z[4] === 0.88, 'Lines: the booking keeps the USD amount and its rate (' + JSON.stringify(z) + ')');
+      /* 7. Tab from the last line reaches Add line (27.7: it went straight to the buttons) */
+      t.$('#bu-modus button[data-modus="zeilen"]').click(); await sleep(40);
+      const letzte = t.$$('#bu-zeilen [data-f="t"]').pop(); letzte.focus();
+      const ev = new e.w.KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }); letzte.dispatchEvent(ev);
+      check(ev.defaultPrevented && e.d.activeElement === t.$('#bu-zeile-neu'), 'Lines: Tab from the last line goes to Add line');
+      /* 8. the filter: the button says what it covers; Ctrl+Enter in the empty dialog on Book books nothing */
+      t.$('#bu-modus button[data-modus="schnell"]').click(); await sleep(40); if (t.knopf('Clear the lines')) t.knopf('Clear the lines').click(); await sleep(40);
+      t.tippe('#bu-datum', '14.10.2026'); t.tippe('#bu-text', 'Not booked from the filter'); t.tippe('#bu-betrag', '10');
+      t.fire(t.tippe('#bu-soll', '4000'), 'keydown', { key: 'Tab' }); t.fire(t.tippe('#bu-haben', '1020'), 'keydown', { key: 'Tab' }); await sleep(10);
+      const n = t.st().buchungen.length;
+      e.d.activeElement.dispatchEvent(new e.w.KeyboardEvent('keydown', { key: 'f', ctrlKey: true, bubbles: true, cancelable: true })); await sleep(20);
+      t.$('#fi-text').dispatchEvent(new e.w.KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, bubbles: true, cancelable: true })); await sleep(40);
+      check(t.st().buchungen.length === n && /year in the head/.test(t.$('#jo-filter').title), 'the filter: Ctrl+Enter in its empty dialog books nothing; its button names the year in the head');
+    }
+    /* 9. the check before saving names what differs; a change that goes through the books writes every line the way
+       the file keeps it (a negative amount on the other side), so the next Save works */
+    { const e = boot(); alle.push(e); await sleep(50); const t = await offen(e, makeFixture(e.w.VORLAGE));
+      t.st().buchungen.push({ id: 'neg1', datum: '2026-10-10', beleg: '', text: 'Negative', z: [['4000', -10, 0], ['1020', 0, -10]] });
+      t.leeren(); t.$('#speichern').click(); await sleep(300);
+      check(!e.names.length && /found a difference: debit \/ credit/.test(t.meldung()), 'the check before saving names the difference (debit / credit) and writes nothing');
+      t.nenne('Test Person, normalised'); await sleep(30);
+      t.$('#speichern').click(); await sleep(300);
+      const neg = t.st().buchungen.find(b => b.id === 'neg1');
+      check(e.names.length === 1 && t.knopfText() === 'Saved' && JSON.stringify(neg.z) === '[["4000",0,10],["1020",10,0]]', 'after a change every line is as the file keeps it, and Save works');
+    }
+    /* 10. fields this version does not know survive opening, saving and editing; duplicate IDs get free names */
+    { const e = boot(); alle.push(e); await sleep(50);
+      const fx = makeFixture(e.w.VORLAGE), i = fx.buchungen.findIndex(b => b.datum === '2026-03-01');
+      fx.extraOben = { x: 1 }; fx.buchungen[i].notiz = 'kept'; fx.buchungen[i].z[0] = fx.buchungen[i].z[0].concat([0, 0, '', 'line extra']);
+      fx.konten[0] = fx.konten[0].concat(['account extra']);
+      fx.vergleichsjahre = [{ jahr: 2023, quelle: 'Import', importiert: '2024-01-01', salden: { '1020': 100, '2800': -100 }, extra: 'kept' }];
+      fx.buchungen[0].id = 'r0003'; fx.buchungen[1].id = 'dup'; fx.buchungen[2].id = 'dup';     // 27.7 renamed the second 'dup' to r0003
+      const t = await offen(e, fx);
+      t.$('#speichern').click(); await sleep(300);
+      const x = JSON.parse(await readBlob(e, e.blobs[e.blobs.length - 1]));
+      const b = x.buchungen.find(y => y.datum === '2026-03-01' && y.notiz) || x.buchungen.find(y => y.datum === '2026-03-01' && /^Rent/.test(y.text));
+      check(x.extraOben && b && b.notiz === 'kept' && b.z[0][6] === 'line extra' && x.konten[0][5] === 'account extra' && x.vergleichsjahre[0].extra === 'kept',
+        'fields of another version survive open and save: at the top, in a booking, a line, an account, an imported closing');
+      check(new Set(x.buchungen.map(y => y.id)).size === x.buchungen.length, 'duplicate booking IDs get names no other booking has');
+      await t.seite('journal');
+      t.$('#jo-liste tr[data-edit="' + b.id + '"]').click(); await sleep(60);
+      t.tippe('#bu-text', 'Rent, edited'); t.$('#bu-ok').click(); await sleep(60);
+      const nach = t.st().buchungen.find(y => y.id === b.id);
+      check(nach.text === 'Rent, edited' && nach.notiz === 'kept', 'editing a booking keeps what the form does not show');
+    }
+    /* 11. iPad: a share sheet that cannot take the file saves nothing and downloads nothing (27.7: it downloaded and
+       called it saved) */
+    { const e = boot({ teilen: 'nein' }); alle.push(e); await sleep(50); const t = await offen(e, makeFixture(e.w.VORLAGE));
+      t.nenne('Changed on the iPad'); await sleep(30); t.leeren();
+      t.$('#speichern').click(); await sleep(300);
+      check(!e.names.length && !e.geteilt.length && t.knopfText() === 'Save' && /could not take the file/.test(t.meldung()), 'iPad: the share sheet refused: nothing saved, nothing downloaded, still unsaved');
+    }
+    /* 12. Save to folder: a booking made while the folder save writes gives no false error and no false question
+       (27.7: "Not saved to the folder", then "Saved elsewhere since you opened it" about its own file) */
+    const ordnerFenster = async () => {
+      const app = fakeDir('EVEN'), bkp = fakeDir('02 BACKUP'); app.kids.set('02 BACKUP', bkp);
+      const alt = fakeFile('2026-10-13_EVEN.json'); app.kids.set(alt.name, alt);
+      const e = boot({ oeffne: alt, ordner: app }); alle.push(e); await sleep(50);
+      { const x = makeFixture(e.w.VORLAGE); x.saved = '2026-10-13T19:00:00.000Z'; alt._t = JSON.stringify(x); }
+      e.d.getElementById('s-oeffnen').click(); await sleep(150); const t = T(e); await t.weg();
+      t.$('#ordner').click(); await sleep(30); t.$('#od-app').click(); await sleep(200);
+      if (t.knopf('Close')) t.knopf('Close').click(); await sleep(40);
+      return { e, t, app, bkp };
+    };
+    { const { t, app } = await ordnerFenster();
+      await t.seite('buchen');
+      t.tippe('#bu-text', 'Booked while saving'); t.tippe('#bu-betrag', '10');
+      t.fire(t.tippe('#bu-soll', '4000'), 'keydown', { key: 'Tab' }); t.fire(t.tippe('#bu-haben', '1020'), 'keydown', { key: 'Tab' }); await sleep(10);
+      t.leeren(); t.$('#speichern').click(); t.$('#bu-ok').click(); await sleep(600);
+      check(/Saved to EVEN/.test(t.meldung()) && !/Not saved/.test(t.meldung()) && t.knopfText() === 'Save', 'Save to folder with a booking made meanwhile: saved, no false error, the booking stays unsaved');
+      t.$('#speichern').click(); await sleep(500);
+      const heute = JSON.parse(app.kids.get('2026-10-14_EVEN.json')._t);
+      check(!t.frage() && heute.buchungen.some(b => b.text === 'Booked while saving') && t.knopfText() === 'Saved', 'the next save goes straight into today’s file, no question, with the booking');
+    }
+    /* 13. Save to folder, "Save as a new file" twice in a day: the second copy gets its own name (27.7: it replaced the
+       first, which was in no backup) */
+    { const { e, t, app } = await ordnerFenster();
+      const fremd = () => { const fh = app.kids.get('2026-10-14_EVEN.json') || fakeFile('2026-10-14_EVEN.json'); const x = makeFixture(e.w.VORLAGE); x.saved = '2026-10-14T23:00:00.000Z'; fh._t = JSON.stringify(x); app.kids.set(fh.name, fh); };
+      fremd(); t.nenne('First copy'); await sleep(30);
+      t.$('#speichern').click(); await sleep(300); if (t.knopf('Save as a new file')) t.knopf('Save as a new file').click(); await sleep(400);
+      fremd(); t.nenne('Second copy'); await sleep(30);
+      t.$('#speichern').click(); await sleep(300); if (t.knopf('Save as a new file')) t.knopf('Save as a new file').click(); await sleep(400);
+      const m = n => app.kids.get(n) && JSON.parse(app.kids.get(n)._t).mandant;
+      check(m('2026-10-14_EVEN COPY.json') === 'First copy' && m('2026-10-14_EVEN COPY 2.json') === 'Second copy', 'a second copy on the same day goes next to the first: “… EVEN COPY 2.json”');
+    }
+    /* 14. writing into the opened file is read back: a file that does not hold what was written is reported and the
+       window stays unsaved */
+    { const disk = fakeFile('2026-10-14_EVEN.json'), e = boot({ oeffne: disk }); alle.push(e); await sleep(50);
+      disk._t = JSON.stringify(makeFixture(e.w.VORLAGE));
+      e.d.getElementById('s-oeffnen').click(); await sleep(150); const t = T(e); await t.weg();
+      disk.createWritable = async () => ({ write: async () => {}, close: async () => { disk._t = '{"cut off'; } });
+      t.nenne('Not written'); await sleep(30); t.leeren();
+      t.$('#speichern').click(); await sleep(300);
+      check(/did not read back the same/.test(t.meldung()) && t.knopfText() === 'Save', 'a write that does not read back is reported; the window stays unsaved');
+    }
+    /* 15. each window keeps its own working copy (27.7: one for all; window B opening a file deleted window A's) */
+    { const sp = {}, locks = new Set(), fxt = e => JSON.stringify(makeFixture(e.w.VORLAGE));
+      const A = boot({ idb: sp, locks }); alle.push(A); await sleep(50); const tA = await offen(A, makeFixture(A.w.VORLAGE), 'a.json');
+      tA.nenne('Unsaved in window A'); await sleep(1400);
+      const B = boot({ idb: sp, locks }); alle.push(B); await sleep(150);
+      check(kopien(sp).length === 1 && !B.d.getElementById('s-weiter'), 'another window that is still open: its unsaved changes are not offered on the start screen');
+      const tB = await offen(B, makeFixture(B.w.VORLAGE), 'b.json');
+      tB.nenne('Saved in window B'); await sleep(30); tB.$('#speichern').click(); await sleep(300);
+      check(kopien(sp).length === 1 && kopie(sp).daten.mandant === 'Unsaved in window A', 'window B opens and saves another file: window A’s working copy stays');
+      A.freigeben(); A.dom.window.close();
+      sp.buchhaltung.set('arbeitskopie', { at: '2026-10-13T08:00:00.000Z', name: 'old.json', basis: null, daten: JSON.parse(fxt(B)) });
+      const C = boot({ idb: sp, locks }); alle.push(C); await sleep(150);
+      check(C.d.querySelectorAll('#start .ev-weiter').length === 2 && /based on a\.json/.test(C.d.getElementById('s-weiter').textContent),
+        'after window A is gone, the start screen offers its changes (newest first) and the copy of an earlier build');
+    }
+    /* 16. a restored working copy saved through the picker onto a file saved elsewhere since: Save asks first */
+    { const disk = fakeFile('2026-10-14_EVEN.json'), sp = {}, T0 = '2026-10-13T19:00:00.000Z', T1 = '2026-10-14T07:00:00.000Z';
+      const e = boot({ idb: sp, oeffne: disk, speichereIn: disk }); alle.push(e);
+      { const x = makeFixture(e.w.VORLAGE); x.saved = T1; disk._t = JSON.stringify(x);
+        const d = makeFixture(e.w.VORLAGE); d.saved = T0; d.mandant = 'Restored';
+        sp.buchhaltung = new Map([['arbeitskopie:crashed', { at: '2026-10-14T09:00:00.000Z', name: '2026-10-14_EVEN.json', basis: T0, daten: d }]]); }
+      await sleep(150); const t = T(e);
+      const weiter = t.$('#s-weiter'); if (weiter) weiter.click(); await sleep(200); await t.weg();
+      t.$('#speichern').click(); await sleep(300);
+      check(!!weiter && t.frage() === 'Saved elsewhere since you opened it', 'a restored copy, Save through the picker onto a file saved elsewhere since: asks first');
+      if (t.knopf('Cancel')) t.knopf('Cancel').click(); await sleep(60);
+      check(JSON.parse(disk._t).saved === T1, 'Cancel leaves that file as it was');
+    }
+    alle.forEach(e => env.errors.push(...e.errors));
   }
 
   check(env.errors.length === 0, 'no script errors' + (env.errors.length ? ': ' + env.errors.slice(0, 3).join(' | ') : ''));

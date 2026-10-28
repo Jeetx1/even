@@ -46,7 +46,7 @@ Kit.initDropdowns("select.select");
       hg.onpointerdown = e => { if(e.target === hg) filterZu(); };
       hg.addEventListener("keydown", e => {
         if(e.key === "Escape"){ e.preventDefault(); e.stopPropagation(); filterZu(); }
-        else if(e.key === "F2" || (e.key === "Enter" && e.target.matches("input"))){ e.preventDefault(); filterSetzen(); }
+        else if(e.key === "F2" || (e.key === "Enter" && e.target.matches("input"))){ e.preventDefault(); e.stopPropagation(); filterSetzen(); }   // never Ctrl+Enter's booking too
       }); },
     /* keys: Escape closes the sheet and the pickers (a dialog closes itself); Ctrl/Cmd + S saves (with Shift: as a new
        file), + Enter books from anywhere on Book, + Z / Y (or Shift + Z) undo and redo outside a field; + F opens the

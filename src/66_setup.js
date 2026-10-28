@@ -21,8 +21,13 @@ function gruppeFuerNummer(nr){ const n = parseFloat(nr); const g = state.gruppen
 const ktOffen = {};
 let ktSuche = '', ktNurBenutzt = false;
 function renderKontenSeite(){
-  const bis = tagDesJahres(), salden = E.saldoPer(state, bis), benutzt = {};
+  const bis = tagDesJahres(), salden = E.saldoPer(state, bis), benutzt = {}, sonst = {};
   state.buchungen.forEach(b => b.z.forEach(z => { benutzt[z[0]] = (benutzt[z[0]] || 0) + 1; }));
+  /* an account can only be deleted when nothing uses it: no booking line, no imported closing, no fixed asset, no system account */
+  const nenne = (nr, was) => { if (!nr) return; const l = sonst[nr] = sonst[nr] || []; if (l.indexOf(was) < 0) l.push(was); };
+  (state.vergleichsjahre || []).forEach(v => Object.keys(v.salden || {}).forEach(nr => nenne(nr, 'imported closing ' + v.jahr)));
+  (state.anlagen || []).forEach(a => [a.konto, a.wb, a.aufwand, a.abgang && a.abgang.konto].forEach(nr => nenne(nr, 'fixed asset “' + a.text + '”')));
+  Object.keys(state.einstellungen || {}).forEach(k => nenne(state.einstellungen[k], 'system account'));
   const alle = kontenSortiert(), q = norm(ktSuche.trim()), wl = Object.keys(state.kurse || {});
   $('#eyebrow').textContent = alle.length + ' accounts in ' + state.gruppen.length + ' groups · balances at ' + dateLong(bis);
   const grpSel = $('#kt-grp'), sig = state.gruppen.map(g => g.c + ':' + g.t).join('|');          // the file's groups (another file, a new group)
@@ -45,7 +50,8 @@ function renderKontenSeite(){
           ktOffen[e.target.value] = true; render(false); toast(k.nr + ' moved to ' + (ix.gm[e.target.value] || {}).t + '.', { action: { text: 'Undo', fn: rueckgaengig } }); } } });
       const wkz = bil ? kleinSelect(optionen([['', state.waehrung]].concat(wl.map(w => [w, w])), k.wkz || ''), { 'aria-label': 'Currency of ' + k.nr, onchange: e => {
         aendere('Currency of ' + k.nr + ' changed', () => { const x = state.konten.find(y => y[0] === k.nr); while (x.length <= 4) x.push(null); x[4] = e.target.value || null; }); } }) : '';
-      const weg = benutzt[k.nr] ? h('span', { class: 'ev-used', title: benutzt[k.nr] + ' booking lines' }, [String(benutzt[k.nr])])
+      const weg = benutzt[k.nr] ? h('span', { class: 'ev-used', title: benutzt[k.nr] + ' booking lines' + (sonst[k.nr] ? '; ' + sonst[k.nr].join(', ') : '') }, [String(benutzt[k.nr])])
+        : sonst[k.nr] ? h('span', { class: 'ev-used', title: 'Used by: ' + sonst[k.nr].join(', ') }, [String(sonst[k.nr].length)])
         : h('button', { type: 'button', class: 'btn btn--ghost btn--sm btn--icon', 'aria-label': 'Delete account ' + k.nr, title: 'Delete (never used)', html: icon('x', 14), onclick: () => {
           if (aendere('Account ' + k.nr + ' deleted', () => { state.konten = state.konten.filter(x => x[0] !== k.nr); })){ render(false); toast('Account ' + k.nr + ' deleted.', { action: { text: 'Undo', fn: rueckgaengig } }); } } });
       return h('tr', {}, [h('td', { class: 'nr' }, [k.nr]), zelle(name, 'ev-w-name'), zelle(grp, 'ev-w-grp'), zelle(wkz || h('span', { class: 'ev-fx' }, ['–']), 'ev-w-cur'),
@@ -234,7 +240,11 @@ function renderVergleichSeite(){
         if (aendere('Closing ' + v.jahr + ' removed', () => { state.vergleichsjahre = state.vergleichsjahre.filter(x => x.jahr !== v.jahr); })){ render(false); toast('Closing ' + v.jahr + ' removed.', { action: { text: 'Undo', fn: rueckgaengig } }); } } }, ['Remove'])])]);
   })) : karteLeer('No closing imported yet', 'Closing balance lists from Banana, Abacus, Excel or EVEN, for years without bookings in this file.'));
 }
+/* years close in order, the earliest first, and reopen the other way round: a closed year opens from the years before
+   it, so none of those may still change */
 async function jahrSchliessen(j){
+  const davor = Object.keys(E.jahreMitBuchungen(state)).map(Number).filter(y => y < j && !istGeschlossen(y)).sort((a, c) => a - c);
+  if (davor.length){ toast('Close ' + davor.join(', ') + ' first: ' + j + ' opens from ' + (davor.length > 1 ? 'those years' : 'that year') + ', so ' + (davor.length > 1 ? 'they have' : 'it has') + ' to be closed before it.', { type: 'error' }); return; }
   const b = E.bilanz(state, ix, j + '-01-01', j + '-12-31');
   const schief = E.kontrolle(state, ix).schief.filter(id => { const x = state.buchungen.find(y => y.id === id); return x && String(x.datum).slice(0, 4) === String(j); });
   if (Math.abs(b.differenz) >= .005 || schief.length){ toast('Year ' + j + ' cannot be closed: ' + (schief.length ? schief.length + ' faulty booking(s).' : 'the balance sheet is off by ' + tsd(b.differenz, 2) + '.'), { type: 'error' }); return; }
@@ -248,6 +258,8 @@ async function jahrSchliessen(j){
     baueKontrollen(); render(false); toast('Year ' + j + ' closed.', { type: 'success', action: { text: 'Undo', fn: rueckgaengig } }); }
 }
 async function jahrOeffnen(j){
+  const danach = (state.abgeschlossen || []).filter(y => y > j).sort((a, c) => c - a);
+  if (danach.length){ toast('Reopen ' + danach.join(', ') + ' first: ' + (danach.length > 1 ? 'they open' : 'it opens') + ' from ' + j + ', so a change in ' + j + ' would change a closed year.', { type: 'error' }); return; }
   if (!await frage('Reopen the year ' + j + '?', 'Its bookings become changeable again. Every change also changes the opening balances of the following years.', [{ text: 'Cancel', wert: false, art: 'leicht' }, { text: 'Reopen', wert: true, art: 'gefahr' }])) return;
   if (aendere('Year ' + j + ' reopened', () => { state.abgeschlossen = (state.abgeschlossen || []).filter(x => x !== j); }, { jahreFrei: true })){ baueKontrollen(); render(false); toast('Year ' + j + ' reopened.', { action: { text: 'Undo', fn: rueckgaengig } }); }
 }

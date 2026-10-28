@@ -13,7 +13,7 @@ const NS = 'http://www.w3.org/2000/svg';
 const REDUCED = Kit.REDUCED;
 
 /* ---------------------------------------------------------------- state */
-let state = null, ix = null, geladen = false, dirty = false, istBeispiel = false;
+let state = null, ix = null, geladen = false, dirty = false;
 let handle = null, dateiname = null;
 let basis;                                        // the file's "saved" stamp when it was opened or last saved (undefined: not known)
 let vgl = null;                                   // {state, name}: the comparison file, only read
@@ -96,12 +96,20 @@ function setzeStand(s){
   neuIndex();
 }
 /* one change: fn() changes state; on an error or a touched closed year everything goes back. The caller draws again.
-   o.jahreFrei: closing or reopening a year changes which years are closed, so the closed-year guard steps aside */
+   A closed year is touched when one of its bookings changes, or its closing does (E.abschlussSpur: a booking before it,
+   an imported closing it opens from, the equity account, an account moved between the statements).
+   Every booking line is then written the way the file keeps it (E.zeileNorm), so the check before saving reads back
+   exactly what the window holds. o.jahreFrei: closing or reopening a year changes which years are closed, so the
+   closed-year guard steps aside */
 function aendere(beschreibung, fn, o){
-  const vorher = schnappschuss(), spur = o && o.jahreFrei ? null : gesperrteSpur();
+  const vorher = schnappschuss(), frei = !!(o && o.jahreFrei), zu = (state.abgeschlossen || []).slice();
+  const spur = frei ? null : gesperrteSpur(), abschluss = frei ? [] : E.abschlussSpur(state, zu);
   try {
     fn();
+    state.buchungen.forEach(b => { if (Array.isArray(b.z)) b.z = b.z.map(x => E.zeileNorm(x)).filter(Boolean); });
     if (spur !== null && gesperrteSpur() !== spur) throw new Error('this would change bookings of a closed year. Reopen the year under Years and closings first');
+    const nachher = frei ? [] : E.abschlussSpur(state, zu), j = zu.find((x, i) => nachher[i] !== abschluss[i]);
+    if (j) throw new Error('this would change the closing of ' + j + ', a closed year. Reopen it under Years and closings first');
   } catch (err){
     setzeStand(vorher);
     toast('Not done: ' + (err && err.message ? err.message : err), { type: 'error' }); console.error(err);
@@ -682,4 +690,4 @@ function toast(msg, o){
 function meldung(text, o){ o = o || {}; toast(String(text), { type: o.fehler ? 'error' : 'info', action: o.aktion, ms: o.dauer }); }
 window.addEventListener('error', e => { if (geladen) meldung('Unexpected error: ' + (e.message || 'unknown') + '. Your data is unchanged.', { fehler: true }); });
 window.addEventListener('unhandledrejection', e => { if (geladen) meldung('Unexpected error: ' + (e.reason && e.reason.message ? e.reason.message : e.reason), { fehler: true }); });
-window.addEventListener('beforeunload', e => { if (dirty && !istBeispiel){ e.preventDefault(); e.returnValue = ''; } });
+window.addEventListener('beforeunload', e => { if (dirty){ e.preventDefault(); e.returnValue = ''; } });

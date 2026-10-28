@@ -254,7 +254,8 @@ function renderSachanlagenSeite(animate){
       h('td', {}, [a.monate + ' m' + (a.rhythmus === 'jahr' ? ', yearly' : ''), h('small', { class: 'ev-inv-acc' }, [x.ende ? 'to ' + dateLong(x.ende + '-01').slice(3) : ''])]),
       h('td', { class: 'num' }, [fz2(x.abgegangen ? 0 : x.gebucht)]), h('td', { class: 'num' }, [h('b', {}, [fz2(x.buchwert)])]),
       h('td', { class: 'num' }, [x.abgegangen ? '–' : fz2(x.monatlich)]), h('td', {}, status),
-      h('td', { class: 'a' }, zu ? [] : [knopf('Edit', () => anlageDialog({ id: a.id })), a.abgang ? null : knopf('Sell', () => abgangDialog(a.id)),
+      /* a sold asset keeps the schedule it was sold with: no Edit, no Sell */
+      h('td', { class: 'a' }, zu ? [] : [a.abgang ? null : knopf('Edit', () => anlageDialog({ id: a.id })), a.abgang ? null : knopf('Sell', () => abgangDialog(a.id)),
         h('button', { type: 'button', class: 'btn btn--ghost btn--sm btn--icon', 'aria-label': 'Remove ' + a.text + ' from the register', title: 'Remove from the register', html: icon('x', 14), onclick: e => { e.stopPropagation(); anlageEntfernen(a.id); } })])]));
   });
   if (liste.length) tb.appendChild(h('tr', { class: 'ev-sumrow' }, [h('td', {}, [h('b', {}, ['Total'])]), h('td'), h('td', { class: 'num' }, [h('b', {}, [fz2(ue.total.kosten)])]), h('td'),
@@ -339,6 +340,7 @@ const miniFiguren = liste => h('div', { class: 'ev-figs ev-figs--mini' }, liste.
 function anlageDialog(o){
   o = o || {};
   const vorhanden = o.id ? (state.anlagen || []).find(a => a.id === o.id) : null;
+  if (vorhanden && vorhanden.abgang){ toast(vorhanden.text + ' is sold: its schedule stays as it was when it was sold.', { type: 'error' }); return; }
   const a = vorhanden ? E.anlageNorm(vorhanden) : E.anlageNorm(Object.assign({ id: '', datum: o.datum || heute(), konto: o.konto || '', kosten: o.kosten || 0, text: o.text || '' }, o.vorgabe || {}));
   if (!vorhanden){
     const v = E.anlageVorschlag(state, ix, a.konto); if (!a.wb && !('wb' in (o.vorgabe || {}))) a.wb = v.wb; if (!a.aufwand) a.aufwand = v.aufwand;
@@ -393,7 +395,7 @@ function anlageDialog(o){
     return E.anlageNorm(a);
   }
   function vorschau(){
-    const n = lesen(), fehler = E.anlagePruefen(n, ix);
+    const n = lesen(), fehler = E.anlagePruefen(n, ix, state);
     vorschauBox.innerHTML = '';
     if (fehler.length){ ok.disabled = true; vorschauBox.appendChild(h('div', { class: 'ev-check is-fehler' }, [h('span', { class: 'ev-check__i', html: icon('x', 12) }), h('span', {}, [fehler[0]])])); return; }
     ok.disabled = false;
@@ -407,7 +409,7 @@ function anlageDialog(o){
   [f.rhythmus, f.start, f.ab].forEach(el => el.addEventListener('change', vorschau));
   [f.text, f.datum, f.monate, f.kosten, f.restwert, f.vorher].forEach(el => el.addEventListener('input', vorschau));
   ok.onclick = () => {
-    const n = lesen(), fehler = E.anlagePruefen(n, ix);
+    const n = lesen(), fehler = E.anlagePruefen(n, ix, state);
     if (fehler.length){ toast(fehler.join(' '), { type: 'error' }); return; }
     if (!vorhanden) n.id = 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
     if (o.buchung) n.buchung = o.buchung;
@@ -427,14 +429,16 @@ function anlageDialog(o){
 async function anlageEntfernen(id){
   const a = (state.anlagen || []).find(x => x.id === id); if (!a) return;
   const eigene = state.buchungen.filter(b => b.plan && b.plan.id === id && !istGeschlossen(b.datum.slice(0, 4)));
-  const wahl = await frage('Remove ' + a.text + ' from the register?', eigene.length ? 'It has ' + eigene.length + ' depreciation booking' + (eigene.length === 1 ? '' : 's') + ' in open years. Keep them as ordinary bookings, or delete them with it?' : 'No bookings of the register are affected.',
+  const inZu = state.buchungen.filter(b => b.plan && b.plan.id === id && istGeschlossen(b.datum.slice(0, 4))).length;
+  const wahl = await frage('Remove ' + a.text + ' from the register?', (eigene.length ? 'It has ' + eigene.length + ' depreciation booking' + (eigene.length === 1 ? '' : 's') + ' in open years. Keep them as ordinary bookings, or delete them with it?' : 'No bookings of open years are affected.')
+      + (inZu ? ' Its ' + inZu + ' booking' + (inZu === 1 ? '' : 's') + ' in closed years stay as they are.' : ''),
     eigene.length ? [{ text: 'Cancel', wert: null, art: 'leicht' }, { text: 'Delete the bookings too', wert: 'loeschen', art: 'gefahr' }, { text: 'Keep the bookings', wert: 'behalten' }]
       : [{ text: 'Cancel', wert: null, art: 'leicht' }, { text: 'Remove', wert: 'behalten', art: 'gefahr' }]);
   if (!wahl) return;
   if (!aendere('Asset removed from the register', () => {
     state.anlagen = state.anlagen.filter(x => x.id !== id);
     if (wahl === 'loeschen') state.buchungen = state.buchungen.filter(b => !(b.plan && b.plan.id === id && !istGeschlossen(b.datum.slice(0, 4))));
-    else state.buchungen.forEach(b => { if (b.plan && b.plan.id === id) delete b.plan; });
+    else state.buchungen.forEach(b => { if (b.plan && b.plan.id === id && !istGeschlossen(b.datum.slice(0, 4))) delete b.plan; });   // closed years stay as they are
   })) return;
   render(false); toast(a.text + ' removed from the register.', { action: { text: 'Undo', fn: rueckgaengig } });
 }

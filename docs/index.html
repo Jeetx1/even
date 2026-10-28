@@ -2,7 +2,7 @@
 <html lang="en" data-theme="glass">
 <head>
 <meta charset="utf-8">
-<meta name="build" content="2026-10-27.7">
+<meta name="build" content="2026-10-28.1">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#070B10">
 <meta name="color-scheme" content="light dark">
@@ -1928,7 +1928,7 @@ html:not(.fx-stamp) .siegel{display:none}
     <section class="ev-page" data-page="journal" id="p-journal" hidden>
       <div class="ev-tools">
         <label class="field ev-search"><span class="affix affix--left"><svg width="17" height="17"><use href="#i-search"/></svg><input class="input" id="jo-suche" type="search" placeholder="Search text, voucher, account or amount" autocomplete="off"></span></label>
-        <button type="button" class="btn btn--secondary btn--sm" id="jo-filter" title="Filter every year (Ctrl+F)"><svg width="15" height="15"><use href="#i-filter"/></svg><span>Filter</span></button>
+        <button type="button" class="btn btn--secondary btn--sm" id="jo-filter" title="Filter the year in the head of the page (Ctrl+F)"><svg width="15" height="15"><use href="#i-filter"/></svg><span>Filter</span></button>
         <button type="button" class="btn btn--ghost btn--sm" id="jo-auf">Expand all</button>
         <button type="button" class="btn btn--ghost btn--sm" id="jo-zu">Collapse all</button>
         <!-- one export: exactly the period chosen in the head of the page -->
@@ -3843,8 +3843,7 @@ var VORLAGE = {
 "ersteller": ""
 }
 };
-var BEISPIEL_BUCHUNGEN = [];
-if(typeof module !== "undefined"){ module.exports = {VORLAGE:VORLAGE, BEISPIEL_BUCHUNGEN:BEISPIEL_BUCHUNGEN}; }
+if(typeof module !== "undefined"){ module.exports = {VORLAGE:VORLAGE}; }
 </script>
 <script id="engine">
 /* =========================================================================
@@ -3926,11 +3925,6 @@ function imJahr(state, J){
 function alle(state){ return imJahr(state, state.jahr); }
 function grp(ix, nr){ const k = ix.km[nr]; return k ? ix.gm[k.grp] : null; }
 // Die Geldfluss-Zuordnung hängt am Konto. Fehlt sie dort, gilt die der Gruppe.
-function cfVon(ix, nr){
-  const k = ix.km[nr]; if(!k) return null;
-  if(k.cf) return k.cf;
-  const g = ix.gm[k.grp]; return g ? g.cf : null;
-}
 function cfKonto(ix, k){ if(k.cf) return k.cf; const g = ix.gm[k.grp]; return g ? g.cf : null; }
 function istER(g){ return !!g && g.s === "E"; }
 function istBilanz(g){ return !!g && (g.s === "A" || g.s === "P"); }
@@ -4152,23 +4146,6 @@ function hauptbuch(state, ix, nr, von, bis){
     summeHaben:r2(zeilen.reduce((a,z)=>a+z.haben,0))};
 }
 
-/* ---- Jahresreihe für die Übersicht ---------------------------------- */
-function jahresreihe(state, ix){
-  const j = state.jahr, kl = klassierung(state, ix), reihe = [];
-  for(let m=1;m<=12;m++){
-    const von = j+"-"+String(m).padStart(2,"0")+"-01";
-    const bis = letzterTag(j,m);
-    const er = erfolg(state, ix, von, bis, kl);
-    reihe.push({m:m, name:MONATE[m-1], kurz:MONATE[m-1].slice(0,3),
-      ertrag:er.ertrag, aufwand:er.aufwand, ergebnis:er.ergebnis,
-      reinvermoegen:reinvermoegen(state, ix, bis)});
-  }
-  const jahr = erfolg(state, ix, j+"-01-01", j+"-12-31", kl);
-  return {monate:reihe, ertrag:jahr.ertrag, aufwand:jahr.aufwand, ergebnis:jahr.ergebnis,
-          reinvermoegenStart:reinvermoegen(state, ix, j+"-01-01", true),
-          reinvermoegenEnde:reinvermoegen(state, ix, j+"-12-31")};
-}
-
 /* ---- Flachsicht für Vergleichsspalten -------------------------------- */
 function flachBilanz(b){
   const m = {};
@@ -4195,11 +4172,6 @@ function flachErfolg(er){
   m["ertrag"] = er.ertrag; m["aufwand"] = er.aufwand;
   return m;
 }
-function jahreImBestand(state){
-  const j = {};
-  (state.buchungen||[]).forEach(b=> j[b.datum.slice(0,4)] = true);
-  return Object.keys(j).sort();
-}
 
 /* ---- Perioden ------------------------------------------------------- */
 function letzterTag(j,m){
@@ -4221,10 +4193,9 @@ return {alle:alle, imJahr:imJahr, eroeffnung:eroeffnung, jahreMitBuchungen:jahre
         r2:r2, ctx:ctx, konten:konten, istER:istER, istBilanz:istBilanz,
         saldoPer:saldoPer, saldoStart:saldoStart, bewegung:bewegung, buchungenIn:buchungenIn,
         kontrolle:kontrolle, bilanz:bilanz, erfolg:erfolg, klassierung:klassierung,
-        hauptbuch:hauptbuch, reinvermoegen:reinvermoegen, jahresreihe:jahresreihe,
-        cfVon:cfVon, cfKonto:cfKonto, fwSaldoPer:fwSaldoPer, neubewertung:neubewertung,
+        hauptbuch:hauptbuch, reinvermoegen:reinvermoegen,
+        cfKonto:cfKonto, fwSaldoPer:fwSaldoPer, neubewertung:neubewertung,
         flachBilanz:flachBilanz, flachErfolg:flachErfolg,
-        jahreImBestand:jahreImBestand,
         perioden:perioden, letzterTag:letzterTag};
 })();
 if(typeof module !== "undefined"){ module.exports = ENGINE; }
@@ -4294,15 +4265,28 @@ function monatPlus(ym, n){
   const d = new Date(Date.UTC(t[0], t[1]-1+n, 1));
   return d.getUTCFullYear()+"-"+String(d.getUTCMonth()+1).padStart(2,"0");
 }
-function datumPlusMonate(datum, n){
-  const t = datum.split("-").map(Number);
-  const d = new Date(Date.UTC(t[0], t[1]-1+n, 1));
-  const letzter = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth()+1, 0)).getUTCDate();
-  return d.getUTCFullYear()+"-"+String(d.getUTCMonth()+1).padStart(2,"0")+"-"+String(Math.min(t[2], letzter)).padStart(2,"0");
-}
 function monatsende(ym){ const t = ym.split("-").map(Number); return E.letzterTag(t[0], t[1]); }
 
 /* ---- Datei prüfen und reparieren ------------------------------------ */
+/* one booking line as the file keeps it: [account, debit, credit], then [foreign amount, rate] and the line text when
+   there are any; anything after the line text stays. Amounts to the cent, a negative amount moves to the other side,
+   a line without an amount is null. The same rule for a file that is opened and for every change (aendere), so what
+   is in the window always reads back the same from the file. info.gedreht counts the moved amounts */
+function zeileNorm(x, info){
+  if(!Array.isArray(x) || x[0]===undefined || x[0]===null) return null;
+  let s = zahl(x[1]), h = zahl(x[2]);
+  s = isFinite(s) ? r2(s) : 0; h = isFinite(h) ? r2(h) : 0;
+  if(s < 0){ h = r2(h - s); s = 0; if(info) info.gedreht++; }
+  if(h < 0){ s = r2(s - h); h = 0; if(info) info.gedreht++; }
+  if(!s && !h) return null;
+  const zeile = [String(x[0]).trim(), s, h];
+  const fw = zahl(x[3]), kurs = zahl(x[4]);
+  const hatFW = isFinite(fw) && fw && isFinite(kurs) && kurs;
+  const text = typeof x[5] === "string" ? x[5].trim() : "", rest = x.slice(6);
+  if(hatFW || text || rest.length){ zeile.push(hatFW ? r2(Math.abs(fw)) : 0); zeile.push(hatFW ? kurs : 0); }
+  if(text || rest.length) zeile.push(text);
+  return zeile.concat(rest);
+}
 const EINSTELLUNGEN = {ara:"1300", araJahr:"1305", pra:"2300", praJahr:"2305", gewinnvortrag:"2800", kursgewinn:"6999", kursverlust:"6949", abgangGewinn:"6815", abgangVerlust:"6810", ersteller:""};
 function pruefeDatei(roh, vorlage){
   const w = [], f = [];
@@ -4347,17 +4331,21 @@ function pruefeDatei(roh, vorlage){
       g = neu;
     }
     const cf = o.cf && (buckets.some(b=>b.b===o.cf) || o.cf === "nc" || o.cf === "cash") ? o.cf : null;
-    konten.push([nr, String(o.name||("Konto "+nr)), g, cf, o.wkz ? String(o.wkz).toUpperCase() : null]);
+    konten.push([nr, String(o.name||("Konto "+nr)), g, cf, o.wkz ? String(o.wkz).toUpperCase() : null].concat(Array.isArray(k) ? k.slice(5) : []));
   });
   const km = {}; konten.forEach(k=> km[k[0]] = true);
 
   // Buchungen
-  const buchungen = [], ids = {};
-  let leer = 0, gedreht = 0;
+  const buchungen = [], ids = {}, alleIds = new Set(roh.buchungen.map(b=> b && b.id !== undefined && b.id !== null ? String(b.id) : ""));
+  const info = {gedreht:0}; let leer = 0, frei = 0;
   roh.buchungen.forEach((b,i)=>{
     if(!b || typeof b !== "object"){ w.push("Booking entry "+(i+1)+" was unreadable and was skipped."); return; }
     let id = b.id === undefined || b.id === null ? "" : String(b.id);
-    if(!id || ids[id]){ const neu = "r"+String(i+1).padStart(4,"0"); if(id) w.push("Booking ID "+id+" was duplicated; the second one is now "+neu+"."); id = neu; }
+    if(!id || ids[id]){
+      // a free ID that no other booking of the file carries
+      let neu; do { neu = "r"+String(++frei).padStart(4,"0"); } while(ids[neu] || alleIds.has(neu));
+      if(id) w.push("Booking ID "+id+" was duplicated; the second one is now "+neu+"."); id = neu;
+    }
     ids[id] = true;
     let datum = reparDatum(b.datum);
     if(!datum){ w.push("Booking “"+(b.text||id)+"” has no valid date ("+b.datum+") and appears in no report. Fix it in the Journal under “Without a valid date”."); datum = String(b.datum||""); }
@@ -4365,20 +4353,12 @@ function pruefeDatei(roh, vorlage){
     const z = [];
     (Array.isArray(b.z) ? b.z : []).forEach(x=>{
       if(!Array.isArray(x) || x[0]===undefined || x[0]===null) return;
-      let s = zahl(x[1]), h = zahl(x[2]);
-      s = isFinite(s) ? r2(s) : 0; h = isFinite(h) ? r2(h) : 0;
-      if(s < 0){ h = r2(h - s); s = 0; gedreht++; }
-      if(h < 0){ s = r2(s - h); h = 0; gedreht++; }
-      if(!s && !h){ leer++; return; }
-      const zeile = [String(x[0]).trim(), s, h];
-      const fw = zahl(x[3]), kurs = zahl(x[4]);
-      const hatFW = isFinite(fw) && fw && isFinite(kurs) && kurs;
-      const text = typeof x[5] === "string" ? x[5].trim() : "";
-      if(hatFW || text){ zeile.push(hatFW ? r2(Math.abs(fw)) : 0); zeile.push(hatFW ? kurs : 0); }
-      if(text) zeile.push(text);
-      z.push(zeile);
+      const zeile = zeileNorm(x, info);
+      if(zeile) z.push(zeile); else leer++;
     });
-    const neu = {id:id, datum:datum, beleg:String(b.beleg||""), text:String(b.text||""), z:z};
+    // fields this version does not know are kept, like the file's own
+    const neu = Object.assign({}, b, {id:id, datum:datum, beleg:String(b.beleg||""), text:String(b.text||""), z:z});
+    delete neu.eb; delete neu.plan; delete neu.virtuell;
     if(b.eb) neu.eb = true;
     if(b.plan && typeof b.plan === "object") neu.plan = b.plan;
     let ss=0, hh=0; z.forEach(x=>{ ss=r2(ss+x[1]); hh=r2(hh+x[2]); });
@@ -4387,7 +4367,7 @@ function pruefeDatei(roh, vorlage){
     buchungen.push(neu);
   });
   if(leer) w.push(leer+" empty booking line(s) without an amount were removed.");
-  if(gedreht) w.push(gedreht+" negative amount(s) were moved to the opposite side.");
+  if(info.gedreht) w.push(info.gedreht+" negative amount(s) were moved to the opposite side.");
 
   // Geschäftsjahr
   let jahr = parseInt(roh.jahr, 10);
@@ -4411,7 +4391,7 @@ function pruefeDatei(roh, vorlage){
     if(!v || !(parseInt(v.jahr,10) > 1900) || !v.salden || typeof v.salden !== "object") return;
     const salden = {};
     Object.keys(v.salden).forEach(nr=>{ const x = zahl(v.salden[nr]); if(isFinite(x) && Math.abs(x) >= 0.005) salden[String(nr)] = r2(x); });
-    vergleichsjahre.push({jahr:parseInt(v.jahr,10), quelle:String(v.quelle||"Import"), importiert:String(v.importiert||""), salden:salden});
+    vergleichsjahre.push(Object.assign({}, v, {jahr:parseInt(v.jahr,10), quelle:String(v.quelle||"Import"), importiert:String(v.importiert||""), salden:salden}));
   });
 
   const ui = Object.assign({tab:"uebersicht", periode:"J", ytd:false, vergleich:"start"}, roh.ui||{});
@@ -4426,7 +4406,8 @@ function pruefeDatei(roh, vorlage){
     konten:konten, buchungen:buchungen, einstellungen:einstellungen,
     vergleichsjahre:vergleichsjahre, abgeschlossen:abgeschlossen, ui:ui
   };
-  // Anything this version does not know is kept as it is, so no data is ever dropped on saving.
+  // Anything this version does not know is kept as it is (here, and inside bookings, lines, accounts and imported
+  // closings), so no data is ever dropped on saving.
   Object.keys(roh).forEach(k=>{ if(!(k in daten)) daten[k] = roh[k]; });
   // the fixed-asset register; the groups that hold depreciable assets are flagged once from the classic
   // ranges 1500–1999 (movable, immovable, intangible) and editable on the Structure page afterwards
@@ -4458,19 +4439,6 @@ function pruefeDatei(roh, vorlage){
     aw2.cfDirekt = 2;
   }
   return {fehler:[], warnungen:w, daten:daten};
-}
-
-/* ---- Belegnummer vorschlagen ---------------------------------------- */
-function naechsterBeleg(state){
-  const liste = (state.buchungen||[]).filter(b=>b.beleg && !b.eb && !(b.plan && b.plan.rolle==="aufloesung"));
-  for(let i = liste.length-1; i >= 0; i--){
-    const m = /^(.*?)(\d+)$/.exec(liste[i].beleg);
-    if(!m) continue;
-    const neu = String(parseInt(m[2],10)+1).padStart(m[2].length, "0");
-    const kandidat = m[1] + neu;
-    if(!liste.some(b=>b.beleg === kandidat)) return kandidat;
-  }
-  return "";
 }
 
 /* ---- Verteilung über Monate ----------------------------------------- */
@@ -4946,21 +4914,7 @@ function pruefeSalden(salden, ix, extraGruppe){
           differenz: r2(aktiven - passiven - ergebnis)};
 }
 
-/* ---- Vergleich: fremde Daten in den aktuellen Aufbau bringen --------- */
-function mitStruktur(basis, fremd){
-  const bix = E.ctx(basis);
-  const konten = basis.konten.map(k=>Array.isArray(k)?k.slice():[k.nr,k.name,k.grp,k.cf,k.wkz]);
-  const fehlt = [];
-  E.konten(fremd).forEach(k=>{
-    if(bix.km[k.nr]) return;
-    if(bix.gm[k.grp]) konten.push([k.nr, k.name, k.grp, k.cf||null, k.wkz||null]);
-    else fehlt.push(k.nr);
-  });
-  const st = Object.assign({}, basis, {jahr:fremd.jahr, buchungen:fremd.buchungen, konten:konten});
-  const benutzt = {};
-  (fremd.buchungen||[]).forEach(b=>b.z.forEach(z=>benutzt[z[0]]=true));
-  return {state:st, unbekannt:fehlt.filter(nr=>benutzt[nr])};
-}
+/* ---- An imported closing as a year of bookings (the Years page) ---- */
 function synthAusSalden(basis, salden, vorjahr, jahr){
   const ix = E.ctx(basis);
   const ein = Object.assign({}, EINSTELLUNGEN, basis.einstellungen||{});
@@ -5003,7 +4957,6 @@ function synthAusSalden(basis, salden, vorjahr, jahr){
 
 /* ---- Vergleichsquellen ---------------------------------------------- */
 // kontext: {state, ix, datei:{state,name}|null}
-function hatJahr(state, j){ return (state.buchungen||[]).some(b=>b.datum && b.datum.slice(0,4) === String(j)); }
 function importQuelle(kontext, j){
   const vj = (kontext.state.vergleichsjahre||[]);
   const a = vj.find(v=>v.jahr === j); if(!a) return null;
@@ -5013,186 +4966,6 @@ function importQuelle(kontext, j){
           gf:sy.gf, label:"Closing "+j, jahresende:true, unbekannt:sy.unbekannt,
           hinweis: sy.gf ? "" : "Cash flow "+j+" is only available once "+(j-1)+" is imported as well."};
 }
-function dateiQuelle(kontext, von, bis){
-  if(!kontext.datei) return null;
-  const m = mitStruktur(kontext.state, kontext.datei.state);
-  return {art:"periode", state:m.state, ix:E.ctx(m.state), von:von, bis:bis, gf:true,
-          label:(kontext.datei.name||"Comparison file"), unbekannt:m.unbekannt,
-          hinweis: m.unbekannt.length ? m.unbekannt.length+" account(s) of the comparison file are missing from the chart: "+m.unbekannt.join(", ") : ""};
-}
-// Vorjahr automatisch: eigene Buchungen, dann Vergleichsdatei, dann Import
-function vorjahrQuelle(kontext, von, bis, nurBilanz){
-  const j = parseInt(von.slice(0,4), 10);
-  if(hatJahr(kontext.state, j))
-    return {art:"periode", state:kontext.state, ix:kontext.ix, von:von, bis:bis, gf:true, label:j===parseInt(bis.slice(0,4),10)?String(j):""};
-  if(kontext.datei && kontext.datei.state.jahr === j){
-    const q = dateiQuelle(kontext, von, bis); q.label = String(j); return q;
-  }
-  const istJahresende = bis.slice(5) === "12-31" && von.slice(5) === "01-01";
-  if(istJahresende || nurBilanz){
-    const q = importQuelle(kontext, j);
-    if(q){ q.label = String(j); return q; }
-  }
-  return null;
-}
-function flachVon(q, typ){
-  if(!q || q.art !== "periode") return null;
-  if(typ === "bilanz")  return E.flachBilanz(E.bilanz(q.state, q.ix, q.von, q.bis));
-  if(typ === "erfolg")  return E.flachErfolg(E.erfolg(q.state, q.ix, q.von, q.bis));
-  return null;   // the cash flow has no comparison figures here (direct method, cfDirekt in 60_reports.js)
-}
-function zeigenAus(m){
-  const s = new Set();
-  if(!m) return s;
-  Object.keys(m).forEach(k=>{
-    if(Math.abs(m[k]) < 0.005) return;
-    if(k.indexOf("k:") === 0) s.add(k.slice(2));
-    if(k.indexOf("z:") === 0) s.add(k);
-  });
-  return s;
-}
-
-/* ---- Kennzahlen ----------------------------------------------------- */
-function kennzahlen(state, ix, von, bis){
-  const b = E.bilanz(state, ix, von, bis), er = E.erfolg(state, ix, von, bis);
-  const s = E.saldoPer(state, bis);
-  let fonds = 0, fll = 0;
-  E.konten(state).forEach(k=>{
-    const g = ix.gm[k.grp]; if(!g || g.s !== "A") return;
-    const cf = E.cfKonto(ix, k);
-    if(cf === "fonds") fonds = r2(fonds + (s[k.nr]||0));
-    if(cf === "op_fll") fll = r2(fll + (s[k.nr]||0));
-  });
-  const sek = c => (b.aktiven.sektionen.concat(b.passiven.sektionen).find(x=>x.code===c)||{summe:0}).summe;
-  // Income, gross result and EBIT come from the file's own structure: the income groups (vz = -1 before the
-  // first expense group) and the subtotals named on the Structure page. Missing subtotal: ratio stays empty.
-  const erGruppen = (state.gruppen||[]).filter(E.istER);
-  let ertrag = 0;
-  for(const g of erGruppen){ if(g.vz !== -1) break; ertrag = r2(ertrag + (er.gruppenwert[g.c] || 0)); }
-  if(!ertrag) ertrag = er.ertrag;
-  const zwischen = muster => { const z = er.zeilen.find(x=> x.typ === "zwsum" && !x.block && muster.test(x.titel)); return z ? z.wert : null; };
-  const brutto = zwischen(/^(gross result|bruttoergebnis|bruttogewinn|rohertrag)$/i);
-  const ebit = zwischen(/^ebit$/i);
-  const q = (a,b) => (a === null || a === undefined || !b) ? null : a/b;
-  return {
-    bilanzsumme:b.aktiven.summe, eigenkapital:b.eigenkapital, fremdkapital:b.fremdkapital,
-    ekQuote:q(b.eigenkapital, b.aktiven.summe), fkQuote:q(b.fremdkapital, b.aktiven.summe),
-    liq1:q(fonds, sek("KFK")), liq2:q(fonds+fll, sek("KFK")),
-    anlagedeckung1:q(b.eigenkapital, sek("AV")),
-    ertrag:ertrag, bruttoMarge:q(brutto, ertrag), ebitMarge:q(ebit, ertrag),
-    umsatzrendite:q(er.ergebnis, ertrag), ekRendite:q(er.ergebnis, b.eigenkapital),
-    ergebnis:er.ergebnis, fonds:fonds
-  };
-}
-
-/* ---- Berichtsmodell: eine Quelle für PDF und Excel ------------------- */
-// opts: {art:"jahr"|"zwischen", bis:"YYYY-MM-DD", vergleich:"vorjahr"|"keine",
-//        detail:"gruppen"|"konten", teile:{deckblatt,bilanz,erfolg,geldfluss,kennzahlen,salden}}
-function bericht(kontext, opts){
-  const st = kontext.state, ix = kontext.ix, j = st.jahr;
-  const bis = opts.art === "jahr" ? j+"-12-31" : opts.bis;
-  const von = j+"-01-01";
-  const vj = j-1;
-  const vglBil = opts.vergleich === "vorjahr" ? vorjahrQuelle(kontext, vj+"-01-01", vj+"-12-31", true) : null;
-  const vglErf = opts.vergleich === "vorjahr" ? vorjahrQuelle(kontext, vj+"-01-01", datumPlusMonate(bis, -12), opts.art === "jahr") : null;
-  const hinweise = [];
-  if(opts.vergleich === "vorjahr"){
-    if(!vglBil) hinweise.push("There are no prior-year figures "+vj+" for the balance sheet.");
-    if(!vglErf) hinweise.push(opts.art === "jahr"
-      ? "There are no prior-year figures "+vj+" for the income statement."
-      : "There are no bookings for the prior-year period "+vj+"; imported closings only hold full-year figures.");
-    if(vglErf && vglErf.gf === false) hinweise.push(vglErf.hinweis);
-    [vglBil, vglErf].forEach(q=>{ if(q && q.unbekannt && q.unbekannt.length) hinweise.push("Comparison: "+q.unbekannt.length+" account(s) without a match in the chart ("+q.unbekannt.join(", ")+")."); });
-  }
-  const mB = flachVon(vglBil, "bilanz"), mE = flachVon(vglErf, "erfolg"), mG = null;
-  const zeile = (typ, nr, text, w, v, ebene) => {
-    const d = (v === null || v === undefined) ? null : r2(w - v);
-    return {typ:typ, nr:nr||"", text:text, w:r2(w), v:(v===null||v===undefined)?null:r2(v), d:d,
-            p:(d === null || !v) ? null : d/Math.abs(v), ebene:ebene||typ};
-  };
-  const vw = (m, k) => m ? (m[k] === undefined ? 0 : m[k]) : null;
-
-  const kopf = {
-    mandant:st.mandant, waehrung:st.waehrung||"CHF",
-    titel: opts.art === "jahr" ? "Annual statements "+j : "Interim statements as of "+bis.split("-").reverse().join("."),
-    stichtag:bis, von:von,
-    spalteW: opts.art === "jahr" ? String(j) : bis.split("-").reverse().join("."),
-    spalteBilV: vglBil ? "31.12."+vj : null,
-    spalteErfW: opts.art === "jahr" ? String(j) : "01.01.–"+bis.slice(8)+"."+bis.slice(5,7)+"."+j,
-    spalteErfV: vglErf ? (opts.art === "jahr" ? String(vj) : "01.01.–"+datumPlusMonate(bis,-12).split("-").reverse().join(".")) : null,
-    status: opts.status || "entwurf", ersteller: opts.ersteller || "", erstellt: opts.erstellt || "",
-    hinweise: hinweise
-  };
-
-  const abschnitte = [];
-  if(opts.teile.bilanz){
-    const b = E.bilanz(st, ix, von, bis, zeigenAus(mB));
-    const z = [];
-    [b.aktiven, b.passiven].forEach(teil=>{
-      z.push(zeile("seite","",teil.titel,0,null));
-      teil.sektionen.forEach(s=>{
-        if(!s.gruppen.length && !s.mitErgebnis) return;
-        z.push(zeile("bereich","",s.titel,0,null));
-        s.gruppen.forEach(g=>{
-          if(opts.detail === "konten"){
-            g.konten.forEach(k=> z.push(zeile("konto",k.nr,k.name,k.wert,vw(mB,"k:"+k.nr))));
-            if(g.st === "immer" || (g.st !== "nie" && g.konten.length > 1)) z.push(zeile("gruppe","",g.titel,g.summe,vw(mB,"grp:"+g.code)));
-          }else z.push(zeile("position","",g.titel,g.summe,vw(mB,"grp:"+g.code)));
-        });
-        if(s.mitErgebnis) z.push(zeile(opts.detail==="konten"?"konto":"position","",st.titel.ergebnis||"Result for the period",b.ergebnis,vw(mB,"ergebnis")));
-        z.push(zeile("summe","","Total "+s.titel,s.summe,vw(mB,"sek:"+s.code)));
-      });
-      z.push(zeile("total","","Total "+teil.titel,teil.summe,vw(mB, teil===b.aktiven?"aktiven":"passiven")));
-    });
-    abschnitte.push({id:"bilanz", titel:"Balance sheet", spalteW:kopf.spalteW, spalteV:kopf.spalteBilV, zeilen:z, differenz:b.differenz});
-  }
-  if(opts.teile.erfolg){
-    const er = E.erfolg(st, ix, von, bis, null, zeigenAus(mE));
-    const z = [];
-    er.zeilen.forEach(x=>{
-      if(x.typ === "gruppe"){
-        if(!x.konten.length && Math.abs(x.wert)<0.005 && !(mE && Math.abs(mE["grp:"+x.code]||0)>=0.005)) return;
-        if(opts.detail === "konten"){
-          z.push(zeile("bereich","",x.titel,0,null));
-          x.konten.forEach(k=> z.push(zeile("konto",k.nr,k.name,k.wert,vw(mE,"k:"+k.nr))));
-          z.push(zeile("gruppe","","Total "+x.titel,x.wert,vw(mE,"grp:"+x.code)));
-        }else z.push(zeile("position","",x.titel,x.wert,vw(mE,"grp:"+x.code)));
-      }else z.push(zeile(x.typ==="total"?"total":"summe","",x.titel,x.wert,vw(mE,x.code)));
-    });
-    abschnitte.push({id:"erfolg", titel:"Income statement", spalteW:kopf.spalteErfW, spalteV:kopf.spalteErfV, zeilen:z});
-  }
-  if(opts.teile.kennzahlen){
-    const k = kennzahlen(st, ix, von, bis);
-    const kv = vglErf ? kennzahlen(vglErf.state, vglErf.ix, vglErf.von, vglErf.bis) : null;
-    const kb = vglBil ? kennzahlen(vglBil.state, vglBil.ix, vglBil.von, vglBil.bis) : null;
-    const L = [
-      ["Eigenkapitalquote","ekQuote","%",kb],["Fremdfinanzierungsgrad","fkQuote","%",kb],
-      ["Liquiditätsgrad 1","liq1","%",kb],["Liquiditätsgrad 2","liq2","%",kb],
-      ["Anlagedeckungsgrad 1","anlagedeckung1","%",kb],
-      ["Bruttomarge","bruttoMarge","%",kv],["EBIT-Marge","ebitMarge","%",kv],
-      ["Umsatzrendite","umsatzrendite","%",kv],["Eigenkapitalrendite","ekRendite","%",kv]
-    ];
-    abschnitte.push({id:"kennzahlen", titel:"Key figures", spalteW:kopf.spalteW, spalteV:(kv||kb)?String(vj):null,
-      zeilen: L.map(x=>({typ:"kennzahl", text:x[0], einheit:x[2], w:k[x[1]], v: x[3] ? x[3][x[1]] : null}))});
-  }
-  if(opts.teile.salden){
-    const sW = E.saldoPer(st, bis), bW = E.bewegung(st, von, bis);
-    const sV = vglBil ? E.saldoPer(vglBil.state, vglBil.bis) : null;
-    const bV = vglErf ? E.bewegung(vglErf.state, vglErf.von, vglErf.bis) : null;
-    const z = [];
-    E.konten(st).slice().sort((a,b)=>a.nr.localeCompare(b.nr,"de",{numeric:true})).forEach(k=>{
-      const g = ix.gm[k.grp]; if(!g) return;
-      const er = g.s === "E";
-      const w = er ? r2(((bW[k.nr]||{}).soll||0) - ((bW[k.nr]||{}).haben||0)) : r2(sW[k.nr]||0);
-      const v = er ? (bV ? r2(((bV[k.nr]||{}).soll||0) - ((bV[k.nr]||{}).haben||0)) : null) : (sV ? r2(sV[k.nr]||0) : null);
-      if(Math.abs(w) < 0.005 && !(v && Math.abs(v) >= 0.005)) return;
-      z.push({typ:"saldo", nr:k.nr, text:k.name, gruppe:g.t, w:w, v:v});
-    });
-    abschnitte.push({id:"salden", titel:"Trial balance", spalteW:kopf.spalteW, spalteV:(vglBil||vglErf)?String(vj):null, zeilen:z});
-  }
-  return {kopf:kopf, abschnitte:abschnitte};
-}
-
 
 /* ---- Fast entry: dates and amounts ---------------------------------- */
 // "15" -> 15th of the base month, "15.3" -> base year, "15.3.26", "15.03.2026", "1503", "150326"
@@ -5250,41 +5023,6 @@ function eroeffnungAusSalden(state, ix, salden){
   const zeilen = Object.keys(z).filter(nr=>Math.abs(z[nr])>=.005).sort((a,b)=>parseFloat(a)-parseFloat(b))
     .map(nr=> z[nr] > 0 ? [nr, z[nr], 0] : [nr, 0, r2(-z[nr])]);
   return {zeilen:zeilen, ergebnis:r2(-er), eigenkapital:r2(-(ek+er)), gewinnvortrag:gv, unbekannt:unbekannt, differenz:summe};
-}
-
-/* ---- Excel layout read by the Financial Statements file -------------- */
-// Column A account number (numeric), B description, C current, D prior year.
-// Signs as in the annual statements: accounts below 2000 as they are, all others reversed.
-function fsWerte(state, ix, von, bis){
-  const s = saldoPerSicher(state, bis), b = E.bewegung(state, von, bis), m = {};
-  E.konten(state).forEach(k=>{
-    const g = ix.gm[k.grp]; if(!g) return;
-    const saldo = g.s === "E" ? r2(((b[k.nr]||{}).soll||0) - ((b[k.nr]||{}).haben||0)) : r2(s[k.nr]||0);
-    if(Math.abs(saldo) < .005) return;
-    m[k.nr] = parseFloat(k.nr) < 2000 ? saldo : r2(-saldo);
-  });
-  return m;
-}
-function saldoPerSicher(state, bis){ return E.saldoPer(state, bis); }
-function fsExport(kontext, opts){
-  opts = opts || {};
-  const st = kontext.state, ix = kontext.ix, j = st.jahr;
-  const bis = opts.bis || (j+"-12-31");
-  const cur = fsWerte(st, ix, j+"-01-01", bis);
-  let prior = null, hinweis = "";
-  if(opts.vorjahr){
-    const q = vorjahrQuelle(kontext, (j-1)+"-01-01", (j-1)+"-12-31", true);
-    if(q) prior = fsWerte(q.state, q.ix, q.von, q.bis);
-    else hinweis = "There are no figures for "+(j-1)+", so the file has no prior-year column.";
-  }
-  const nrs = Array.from(new Set(Object.keys(cur).concat(prior ? Object.keys(prior) : []))).sort((a,b)=>parseFloat(a)-parseFloat(b));
-  const name = nr => (ix.km[nr] || {}).name || ("Account "+nr);
-  const zeilen = [[st.mandant||""], ["BILANZ UND ERFOLGSRECHNUNG"], [], ["Account","Description", bis].concat(prior ? [(j-1)+"-12-31"] : [])];
-  nrs.forEach(nr=> zeilen.push([parseFloat(nr), name(nr), cur[nr]||0].concat(prior ? [prior[nr]||0] : [])));
-  const pruef = m => { let a = 0, r = 0; Object.keys(m).forEach(nr=>{ if(parseFloat(nr) < 2000) a = r2(a + m[nr]); else r = r2(r + m[nr]); }); return r2(a - r); };
-  let ergebnis = 0; Object.keys(cur).forEach(nr=>{ if(parseFloat(nr) >= 3000) ergebnis = r2(ergebnis + cur[nr]); });
-  return {blatt:("BuHa "+(st.mandant||"")+" "+j).slice(0,31), zeilen:zeilen, anzahl:nrs.length,
-          differenz:pruef(cur), differenzVJ: prior ? pruef(prior) : 0, ergebnis:ergebnis, hinweis:hinweis, mitVorjahr:!!prior};
 }
 
 /* ---- Twelve-month report -------------------------------------------- */
@@ -5484,6 +5222,20 @@ function abschlussPruefung(state, ix, J){
   return w;
 }
 
+/* ---- The closing of closed years, one string per year -------------------
+   Every account's balance at 31.12. of each year (its opening included) with the part of the statements it belongs
+   to. Whatever changes it changes a closed year: a booking in it or before it, an imported closing it opens from,
+   the equity account the opening rolls into, an account moved between balance sheet and income statement. */
+function abschlussSpur(state, jahre){
+  if(!jahre || !jahre.length) return [];
+  const ix = E.ctx(state);                          // fresh: a change may have been made in place
+  return jahre.map(J=>{
+    const s = E.saldoPer(state, J+"-12-31");
+    return J+":"+Object.keys(s).filter(nr=> Math.abs(s[nr]) >= .005).sort().map(nr=>{
+      const g = E.grp(ix, nr); return nr+"="+s[nr]+"/"+(g ? g.s+(g.s === "E" ? "" : g.sek) : "?"); }).join(",");
+  });
+}
+
 /* ---- Fixed assets: register and depreciation ----------------------------
    state.anlagen holds one entry per asset:
    {id, text, konto, wb, aufwand, datum, start, monate, kosten, restwert, rhythmus,
@@ -5519,7 +5271,9 @@ function anlageNorm(a){
   else delete o.abgang;
   return o;
 }
-function anlagePruefen(a, ix){
+/* with state: the depreciation booked in closed years and before the register counts too; the rest of the cost can
+   never be less than nothing, so the register never books a negative depreciation */
+function anlagePruefen(a, ix, state){
   const f = [];
   if(!a.text) f.push("Give the asset a name.");
   if(!ix.km[a.konto]) f.push("Choose the asset account.");
@@ -5532,6 +5286,10 @@ function anlagePruefen(a, ix){
   if(a.restwert < 0 || a.restwert > a.kosten) f.push("The residual value must lie between 0 and the cost.");
   if(a.vorher < 0 || a.vorher > a.kosten - a.restwert) f.push("The depreciation already booked cannot exceed cost less residual value.");
   if(a.ab < a.start) f.push("The register cannot start before the first month of depreciation.");
+  if(state && !f.length){
+    const p = anlagePlan(state, a), fest = r2(a.kosten - a.restwert - p.basis);
+    if(p.basis < -0.005) f.push("Already depreciated: "+fest.toFixed(2)+" (in closed years and before the register), more than cost less residual value ("+r2(a.kosten - a.restwert).toFixed(2)+"). Correct the cost or the residual value, or reopen the closed year first.");
+  }
   return f;
 }
 const monateZwischen = (von, bis) => { const a = von.split("-").map(Number), b = bis.split("-").map(Number); return (b[0]-a[0])*12 + (b[1]-a[1]); };
@@ -5594,7 +5352,7 @@ function anlagenFortfuehren(state, ix, J, nur){
     if(nur && roh.id !== nur) return;
     const a = anlageNorm(roh); if(!ix.km[a.konto] || !ix.km[a.aufwand]) return;
     const plan = anlagePlan(state, a), n = a.monate;
-    const zeilen = plan.zeilen.filter(z=> z.quelle === "offen" && z.monat.slice(0,4) === String(J) && Math.abs(z.betrag) >= .005);
+    const zeilen = plan.zeilen.filter(z=> z.quelle === "offen" && z.monat.slice(0,4) === String(J) && z.betrag >= .005);     // never a negative depreciation
     if(!zeilen.length) return;
     const gegen = a.wb || a.konto, abg = a.abgang && a.abgang.datum ? a.abgang.datum : null;
     const datumVon = z => { let d = z.datum; if(abg && d > abg) d = abg; if(d < a.datum) d = a.datum; return d; };
@@ -5612,6 +5370,8 @@ function anlagenFortfuehren(state, ix, J, nur){
 }
 /* after a change to an asset: its bookings in open years are rebuilt from the schedule, years up to `bisJahr` */
 function anlageNeuBuchen(state, ix, a, bisJahr, neueId){
+  // a sold asset's disposal was booked from its schedule: rebooking the depreciation alone would leave it wrong
+  if(anlageNorm(a).abgang) throw new Error("the asset is sold; its schedule stays as it was when it was sold");
   const zu = new Set(state.abgeschlossen||[]), weg = b=> b.plan && b.plan.id === a.id && b.plan.rolle === "abschreibung" && !zu.has(parseInt(b.datum.slice(0,4), 10));
   // an open year after `bisJahr` that had bookings of this asset is rebuilt too, never just emptied
   (state.buchungen||[]).forEach(b=>{ if(weg(b)) bisJahr = Math.max(bisJahr, parseInt(b.datum.slice(0,4), 10)); });
@@ -5795,8 +5555,10 @@ function strukturZeilen(state, ix, fb, fe, von, bis){
 
 
 /* ---- All twelve month ends of a year in one pass ---------------------
-   Same figures as fsWerte(state, ix, J-01-01, month end), but the year's
-   bookings are read once instead of twelve times. */
+   Per account at each month end: balance sheet accounts their balance,
+   income statement accounts the year to date; accounts below 2000 as
+   they are, all others reversed (the statements engine's sign). The
+   year's bookings are read once. */
 function fsMonatsWerte(state, ix, J){
   const buch = E.imJahr(state, J).filter(b=> b && E.istDatum(b.datum)).slice().sort((a,b)=> a.datum < b.datum ? -1 : (a.datum > b.datum ? 1 : 0));
   const bs = {}, er = {}, aus = [];
@@ -5823,37 +5585,28 @@ function fsMonatsWerte(state, ix, J){
   return aus;
 }
 
-Object.assign(E, {zahl:zahl, nachkomma:nachkomma, istDatum:istDatum, reparDatum:reparDatum,
-  monatPlus:monatPlus, datumPlusMonate:datumPlusMonate, monatsende:monatsende,
-  EINSTELLUNGEN:EINSTELLUNGEN, pruefeDatei:pruefeDatei, naechsterBeleg:naechsterBeleg,
+Object.assign(E, {zahl:zahl, zeileNorm:zeileNorm, nachkomma:nachkomma, istDatum:istDatum, reparDatum:reparDatum,
+  monatPlus:monatPlus, monatsende:monatsende,
+  EINSTELLUNGEN:EINSTELLUNGEN, pruefeDatei:pruefeDatei,
   verteilung:verteilung, plaene:plaene, spreadsUmstellen:spreadsUmstellen, spreadsFortfuehren:spreadsFortfuehren,
   leseTabelleText:leseTabelleText, leseXlsx:leseXlsx, analysiereSalden:analysiereSalden,
   erkenneVorzeichen:erkenneVorzeichen, saldenAusImport:saldenAusImport, pruefeSalden:pruefeSalden, natur:natur,
-  mitStruktur:mitStruktur, synthAusSalden:synthAusSalden, importQuelle:importQuelle,
-  dateiQuelle:dateiQuelle, vorjahrQuelle:vorjahrQuelle, flachVon:flachVon, zeigenAus:zeigenAus,
-  kennzahlen:kennzahlen, bericht:bericht, hatJahr:hatJahr,
+  synthAusSalden:synthAusSalden, importQuelle:importQuelle,
   datumAusEingabe:datumAusEingabe, betragAusEingabe:betragAusEingabe, eroeffnungAusSalden:eroeffnungAusSalden,
-  fsWerte:fsWerte, fsExport:fsExport, monatsbericht:monatsbericht, besterModus:besterModus, jahresvergleich:jahresvergleich, fsMonatsWerte:fsMonatsWerte,
-  abschlussPruefung:abschlussPruefung, abschlussStruktur:abschlussStruktur, cfKlassen:cfKlassen, anlageKandidaten:anlageKandidaten, BUCKET_KLASSE:BUCKET_KLASSE,
+  monatsbericht:monatsbericht, besterModus:besterModus, jahresvergleich:jahresvergleich, fsMonatsWerte:fsMonatsWerte,
+  abschlussPruefung:abschlussPruefung, abschlussSpur:abschlussSpur, abschlussStruktur:abschlussStruktur, cfKlassen:cfKlassen, anlageKandidaten:anlageKandidaten, BUCKET_KLASSE:BUCKET_KLASSE,
   anlagen:anlagen, anlageNorm:anlageNorm, anlagePruefen:anlagePruefen, anlagePlan:anlagePlan, anlageStand:anlageStand, anlagenFortfuehren:anlagenFortfuehren,
   anlageNeuBuchen:anlageNeuBuchen, anlageAbgang:anlageAbgang, anlageAbgangBuchen:anlageAbgangBuchen, anlagenUebersicht:anlagenUebersicht, anlagenJahresreihe:anlagenJahresreihe, anlageJahre:anlageJahre,
   anlageVorschlag:anlageVorschlag, istAnlageGruppe:istAnlageGruppe, anlageKonto:anlageKonto, monateZwischen:monateZwischen});
 })(ENGINE);
 </script>
 <script id="ui">
-/* App icons · FINAL 24.10.2026. One fixed icon per app (it does not change with the look).
-   The series: pearl tile, one indigo crystal shape (light/dark facets), the spectral sun, one glint.
-   Source of truth: APPS/01 DESIGN LAB/03 App icons FINAL/<APP>/icon.svg. Each function takes a unique id prefix
-   (gradients must not clash when an icon is drawn twice on a page). */
+/* The EVEN app icon · FINAL 24.10.2026, fixed (it does not change with the look). Source of truth:
+   APPS/01 DESIGN LAB/03 App icons FINAL/EVEN/icon.svg. The function takes a unique id prefix (gradients must not clash
+   when the icon is drawn twice on a page). */
 const APP_ICONS = {
   /* EVEN · accounting: P&L waterfall (revenue, costs, the result bar in indigo) with the sun. */
   even(u){ return "<svg viewBox=\"0 0 100 100\" aria-hidden=\"true\"><defs><linearGradient id=\"__U__pb\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\"><stop offset=\"0\" stop-color=\"#FFFFFF\"/><stop offset=\"1\" stop-color=\"#E4E0F7\"/></linearGradient><radialGradient id=\"__U__pg\" cx=\".15\" cy=\".05\" r=\".8\"><stop offset=\"0\" stop-color=\"#FFFFFF\"/><stop offset=\"1\" stop-color=\"#FFFFFF\" stop-opacity=\"0\"/></radialGradient><filter id=\"__U__sh\" x=\"-50%\" y=\"-50%\" width=\"200%\" height=\"200%\"><feGaussianBlur stdDeviation=\"4\"/></filter><linearGradient id=\"__U__cl\" x1=\"0\" y1=\"0\" x2=\".4\" y2=\"1\"><stop offset=\"0\" stop-color=\"#FFF1DC\"/><stop offset=\".45\" stop-color=\"#F1E6FF\"/><stop offset=\"1\" stop-color=\"#D3CAFF\"/></linearGradient><linearGradient id=\"__U__hero\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\"><stop offset=\"0\" stop-color=\"#8A7BFF\"/><stop offset=\"1\" stop-color=\"#2E1FB8\"/></linearGradient><linearGradient id=\"__U__sp\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0\" stop-color=\"#16B2E3\"/><stop offset=\".35\" stop-color=\"#1FC796\"/><stop offset=\".65\" stop-color=\"#FFAA2E\"/><stop offset=\"1\" stop-color=\"#FF5C8A\"/></linearGradient><linearGradient id=\"__U__sh2\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"0\"><stop offset=\"0\" stop-color=\"#16B2E3\"/><stop offset=\".35\" stop-color=\"#1FC796\"/><stop offset=\".65\" stop-color=\"#FFAA2E\"/><stop offset=\"1\" stop-color=\"#FF5C8A\"/></linearGradient><linearGradient id=\"__U__sr\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\"><stop offset=\"0\" stop-color=\"#16B2E3\"/><stop offset=\".35\" stop-color=\"#1FC796\"/><stop offset=\".65\" stop-color=\"#FFAA2E\"/><stop offset=\"1\" stop-color=\"#FF5C8A\"/></linearGradient><radialGradient id=\"__U__sun\" cx=\".4\" cy=\".35\" r=\".7\"><stop offset=\"0\" stop-color=\"#FFFFFF\"/><stop offset=\"1\" stop-color=\"#FFF1DC\"/></radialGradient><linearGradient id=\"__U__t0\" gradientUnits=\"userSpaceOnUse\" x1=\"19\" y1=\"0\" x2=\"31\" y2=\"0\"><stop offset=\"0\" stop-color=\"#16B2E3\"/><stop offset=\".35\" stop-color=\"#1FC796\"/><stop offset=\".65\" stop-color=\"#FFAA2E\"/><stop offset=\"1\" stop-color=\"#FF5C8A\"/></linearGradient><linearGradient id=\"__U__t1\" gradientUnits=\"userSpaceOnUse\" x1=\"44\" y1=\"0\" x2=\"56\" y2=\"0\"><stop offset=\"0\" stop-color=\"#16B2E3\"/><stop offset=\".35\" stop-color=\"#1FC796\"/><stop offset=\".65\" stop-color=\"#FFAA2E\"/><stop offset=\"1\" stop-color=\"#FF5C8A\"/></linearGradient><linearGradient id=\"__U__hv\" gradientUnits=\"userSpaceOnUse\" x1=\"0\" y1=\"75\" x2=\"0\" y2=\"50\"><stop offset=\"0\" stop-color=\"#16B2E3\"/><stop offset=\".35\" stop-color=\"#1FC796\"/><stop offset=\".65\" stop-color=\"#FFAA2E\"/><stop offset=\"1\" stop-color=\"#FF5C8A\"/></linearGradient><linearGradient id=\"__U__bl\" gradientUnits=\"userSpaceOnUse\" x1=\"15\" y1=\"0\" x2=\"85\" y2=\"0\"><stop offset=\"0\" stop-color=\"#16B2E3\"/><stop offset=\".35\" stop-color=\"#1FC796\"/><stop offset=\".65\" stop-color=\"#FFAA2E\"/><stop offset=\"1\" stop-color=\"#FF5C8A\"/></linearGradient></defs><rect width=\"100\" height=\"100\" fill=\"url(#__U__pb)\"/><rect width=\"100\" height=\"100\" fill=\"url(#__U__pg)\"/><circle cx=\"76\" cy=\"27\" r=\"8.5\" fill=\"url(#__U__sun)\"/><circle cx=\"76\" cy=\"27\" r=\"8.5\" fill=\"none\" stroke=\"url(#__U__sr)\" stroke-width=\"1.5\"/><path d=\"M34.8 20H40.2\" stroke=\"#5B48F5\" stroke-opacity=\".4\" stroke-width=\"1.2\" stroke-dasharray=\"1.8 1.4\"/><path d=\"M59.8 47H65.2\" stroke=\"#5B48F5\" stroke-opacity=\".4\" stroke-width=\"1.2\" stroke-dasharray=\"1.8 1.4\"/><rect x=\"16\" y=\"20\" width=\"18\" height=\"58\" rx=\"3.2\" fill=\"url(#__U__cl)\" stroke=\"#5B48F5\" stroke-opacity=\".3\" stroke-width=\"1\"/><rect x=\"41\" y=\"20\" width=\"18\" height=\"27\" rx=\"3.2\" fill=\"url(#__U__cl)\" stroke=\"#5B48F5\" stroke-opacity=\".3\" stroke-width=\"1\"/><rect x=\"66\" y=\"50\" width=\"18\" height=\"31\" rx=\"4\" fill=\"#3A28C9\" opacity=\".35\" filter=\"url(#__U__sh)\"/><rect x=\"66\" y=\"47\" width=\"18\" height=\"31\" rx=\"3.2\" fill=\"url(#__U__hero)\"/><path d=\"M15 81.5h70\" stroke=\"#5B48F5\" stroke-opacity=\".3\" stroke-width=\"1.1\" stroke-linecap=\"round\"/><path d=\"M67 43.3 Q67.315 47.185 71.2 47.5 Q67.315 47.815 67 51.7 Q66.685 47.815 62.8 47.5 Q66.685 47.185 67 43.3Z\" fill=\"#FFFFFF\"/></svg>".replace(/__U__/g, u); },
-  /* CICO · calories: progress ring with a crystal flame inside. */
-  cico(u){ return "<svg viewBox=\"0 0 100 100\" aria-hidden=\"true\"><defs><linearGradient id=\"__U__pb\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\"><stop offset=\"0\" stop-color=\"#FFFFFF\"/><stop offset=\"1\" stop-color=\"#E4E0F7\"/></linearGradient><radialGradient id=\"__U__pg\" cx=\".15\" cy=\".05\" r=\".8\"><stop offset=\"0\" stop-color=\"#FFFFFF\"/><stop offset=\"1\" stop-color=\"#FFFFFF\" stop-opacity=\"0\"/></radialGradient><filter id=\"__U__sh\" x=\"-50%\" y=\"-50%\" width=\"200%\" height=\"200%\"><feGaussianBlur stdDeviation=\"4\"/></filter><linearGradient id=\"__U__al\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\"><stop offset=\"0\" stop-color=\"#8A7BFF\"/><stop offset=\"1\" stop-color=\"#5B48F5\"/></linearGradient><linearGradient id=\"__U__ar\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\"><stop offset=\"0\" stop-color=\"#4632E6\"/><stop offset=\"1\" stop-color=\"#2416A0\"/></linearGradient><linearGradient id=\"__U__cl\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\"><stop offset=\"0\" stop-color=\"#FFFFFF\"/><stop offset=\"1\" stop-color=\"#EAE6FF\"/></linearGradient><linearGradient id=\"__U__cr\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\"><stop offset=\"0\" stop-color=\"#D4CCFF\"/><stop offset=\"1\" stop-color=\"#B2A5FF\"/></linearGradient><linearGradient id=\"__U__sp\" x1=\"0\" y1=\"1\" x2=\"1\" y2=\"0\"><stop offset=\"0\" stop-color=\"#16B2E3\"/><stop offset=\".35\" stop-color=\"#1FC796\"/><stop offset=\".65\" stop-color=\"#FFAA2E\"/><stop offset=\"1\" stop-color=\"#FF5C8A\"/></linearGradient><linearGradient id=\"__U__sr\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\"><stop offset=\"0\" stop-color=\"#16B2E3\"/><stop offset=\".35\" stop-color=\"#1FC796\"/><stop offset=\".65\" stop-color=\"#FFAA2E\"/><stop offset=\"1\" stop-color=\"#FF5C8A\"/></linearGradient><radialGradient id=\"__U__sun\" cx=\".4\" cy=\".35\" r=\".7\"><stop offset=\"0\" stop-color=\"#FFFFFF\"/><stop offset=\"1\" stop-color=\"#FFF1DC\"/></radialGradient><linearGradient id=\"__U__ring\" x1=\"1\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0\" stop-color=\"#8A7BFF\"/><stop offset=\"1\" stop-color=\"#2E1FB8\"/></linearGradient><filter id=\"__U__hb\" x=\"-50%\" y=\"-50%\" width=\"200%\" height=\"200%\"><feGaussianBlur stdDeviation=\"2.4\"/></filter></defs><rect width=\"100\" height=\"100\" fill=\"url(#__U__pb)\"/><rect width=\"100\" height=\"100\" fill=\"url(#__U__pg)\"/><circle cx=\"50\" cy=\"51\" r=\"29\" fill=\"none\" stroke=\"#D9D2FF\" stroke-width=\"9\"/><circle cx=\"50\" cy=\"51\" r=\"29\" fill=\"none\" stroke=\"#5B48F5\" stroke-opacity=\".25\" stroke-width=\"1\" /><path d=\"M64.50 25.89 A29 29 0 1 1 40.08 23.75\" fill=\"none\" stroke=\"#3A28C9\" stroke-opacity=\".35\" stroke-width=\"9\" stroke-linecap=\"round\" transform=\"translate(0 3)\" filter=\"url(#__U__hb)\"/><path d=\"M64.50 25.89 A29 29 0 1 1 40.08 23.75\" fill=\"none\" stroke=\"url(#__U__ring)\" stroke-width=\"9\" stroke-linecap=\"round\"/><path d=\"M35.50 76.11\" /><path d=\"M16.91 45.17 A33.6 33.6 0 0 1 44.17 17.91\" fill=\"none\" stroke=\"url(#__U__sp)\" stroke-width=\"1.2\" stroke-linecap=\"round\"/><polygon points=\"52.5,34.0 57.5,42.5 60.0,52.0 58.0,61.5 50.5,69.0 42.5,63.0 40.0,54.5 41.5,46.5 44.0,41.5 46.5,48.5\" fill=\"#3A28C9\" opacity=\".35\" transform=\"translate(0 2.5)\" filter=\"url(#__U__sh)\"/><polygon points=\"52.5,34.0 50.0,52.0 50.5,69.0 42.5,63.0 40.0,54.5 41.5,46.5 44.0,41.5 46.5,48.5\" fill=\"url(#__U__al)\"/><polygon points=\"52.5,34.0 57.5,42.5 60.0,52.0 58.0,61.5 50.5,69.0 50.0,52.0\" fill=\"url(#__U__ar)\"/><polygon points=\"50.5,52.0 54.0,58.0 53.5,63.5 50.5,66.5 47.0,63.5 46.5,58.0\" fill=\"url(#__U__cl)\"/><polygon points=\"50.5,52.0 54.0,58.0 53.5,63.5 50.5,66.5\" fill=\"url(#__U__cr)\"/><path d=\"M41.60 47.25L43.80 42.30\" stroke=\"url(#__U__sp)\" stroke-width=\"0.84\" stroke-linecap=\"round\"/><path d=\"M64.5 21.26526329025128 Q64.8465 25.538763290251282 69.12 25.88526329025128 Q64.8465 26.23176329025128 64.5 30.505263290251282 Q64.1535 26.23176329025128 59.879999999999995 25.88526329025128 Q64.1535 25.538763290251282 64.5 21.26526329025128Z\" fill=\"#FFFFFF\"/></svg>".replace(/__U__/g, u); },
-  /* RISE · training + journal: crystal chevrons rising toward the sun. */
-  rise(u){ return "<svg viewBox=\"0 0 100 100\" aria-hidden=\"true\"><defs><linearGradient id=\"__U__pb\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\"><stop offset=\"0\" stop-color=\"#FFFFFF\"/><stop offset=\"1\" stop-color=\"#E4E0F7\"/></linearGradient><radialGradient id=\"__U__pg\" cx=\".15\" cy=\".05\" r=\".8\"><stop offset=\"0\" stop-color=\"#FFFFFF\"/><stop offset=\"1\" stop-color=\"#FFFFFF\" stop-opacity=\"0\"/></radialGradient><filter id=\"__U__sh\" x=\"-50%\" y=\"-50%\" width=\"200%\" height=\"200%\"><feGaussianBlur stdDeviation=\"4\"/></filter><linearGradient id=\"__U__al\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\"><stop offset=\"0\" stop-color=\"#8A7BFF\"/><stop offset=\"1\" stop-color=\"#5B48F5\"/></linearGradient><linearGradient id=\"__U__ar\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\"><stop offset=\"0\" stop-color=\"#4632E6\"/><stop offset=\"1\" stop-color=\"#2416A0\"/></linearGradient><linearGradient id=\"__U__cl\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\"><stop offset=\"0\" stop-color=\"#FFFFFF\"/><stop offset=\"1\" stop-color=\"#EAE6FF\"/></linearGradient><linearGradient id=\"__U__cr\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\"><stop offset=\"0\" stop-color=\"#D4CCFF\"/><stop offset=\"1\" stop-color=\"#B2A5FF\"/></linearGradient><linearGradient id=\"__U__sp\" x1=\"0\" y1=\"1\" x2=\"1\" y2=\"0\"><stop offset=\"0\" stop-color=\"#16B2E3\"/><stop offset=\".35\" stop-color=\"#1FC796\"/><stop offset=\".65\" stop-color=\"#FFAA2E\"/><stop offset=\"1\" stop-color=\"#FF5C8A\"/></linearGradient><linearGradient id=\"__U__sr\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\"><stop offset=\"0\" stop-color=\"#16B2E3\"/><stop offset=\".35\" stop-color=\"#1FC796\"/><stop offset=\".65\" stop-color=\"#FFAA2E\"/><stop offset=\"1\" stop-color=\"#FF5C8A\"/></linearGradient><radialGradient id=\"__U__sun\" cx=\".4\" cy=\".35\" r=\".7\"><stop offset=\"0\" stop-color=\"#FFFFFF\"/><stop offset=\"1\" stop-color=\"#FFF1DC\"/></radialGradient><filter id=\"__U__hb\" x=\"-100%\" y=\"-100%\" width=\"300%\" height=\"300%\"><feGaussianBlur stdDeviation=\"2\"/></filter></defs><rect width=\"100\" height=\"100\" fill=\"url(#__U__pb)\"/><rect width=\"100\" height=\"100\" fill=\"url(#__U__pg)\"/><circle cx=\"74\" cy=\"25\" r=\"8.5\" fill=\"url(#__U__sun)\"/><circle cx=\"74\" cy=\"25\" r=\"8.5\" fill=\"none\" stroke=\"url(#__U__sr)\" stroke-width=\"1.5\"/><polygon points=\"48,46 75,73 66,82 48,64 30,82 21,73\" fill=\"#5B48F5\" opacity=\".18\" transform=\"translate(0 4)\" filter=\"url(#__U__sh)\"/><polygon points=\"48,25 75,52 66,61 48,43 30,61 21,52\" fill=\"#3A28C9\" opacity=\".35\" transform=\"translate(0 5)\" filter=\"url(#__U__sh)\"/><polygon points=\"48,46 48,64 30,82 21,73\" fill=\"url(#__U__cl)\"/><polygon points=\"48,46 75,73 66,82 48,64\" fill=\"url(#__U__cr)\"/><polygon points=\"48,46 75,73 66,82 48,64 30,82 21,73\" fill=\"none\" stroke=\"#5B48F5\" stroke-opacity=\".35\" stroke-width=\"1\" stroke-linejoin=\"round\"/><polygon points=\"48,25 48,43 30,61 21,52\" fill=\"url(#__U__al)\"/><polygon points=\"48,25 75,52 66,61 48,43\" fill=\"url(#__U__ar)\"/><path d=\"M21.8 51.2L47.2 25.8\" stroke=\"url(#__U__sp)\" stroke-width=\"1.2\" stroke-linecap=\"round\"/><path d=\"M27 52.5L46.5 33\" stroke=\"#FFFFFF\" stroke-opacity=\".55\" stroke-width=\"1.1\" stroke-linecap=\"round\"/><path d=\"M48 20.67 Q48.36225 25.13775 52.83 25.5 Q48.36225 25.86225 48 30.33 Q47.63775 25.86225 43.17 25.5 Q47.63775 25.13775 48 20.67Z\" fill=\"#FFFFFF\"/></svg>".replace(/__U__/g, u); },
-  /* EBIT · exam learning: crystal peak with the sun. */
-  ebit(u){ return "<svg viewBox=\"0 0 100 100\" aria-hidden=\"true\"><defs><linearGradient id=\"__U__pb\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\"><stop offset=\"0\" stop-color=\"#FFFFFF\"/><stop offset=\"1\" stop-color=\"#E4E0F7\"/></linearGradient><radialGradient id=\"__U__pg\" cx=\".15\" cy=\".05\" r=\".8\"><stop offset=\"0\" stop-color=\"#FFFFFF\"/><stop offset=\"1\" stop-color=\"#FFFFFF\" stop-opacity=\"0\"/></radialGradient><filter id=\"__U__sh\" x=\"-50%\" y=\"-50%\" width=\"200%\" height=\"200%\"><feGaussianBlur stdDeviation=\"4\"/></filter><linearGradient id=\"__U__al\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\"><stop offset=\"0\" stop-color=\"#8A7BFF\"/><stop offset=\"1\" stop-color=\"#5B48F5\"/></linearGradient><linearGradient id=\"__U__ar\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\"><stop offset=\"0\" stop-color=\"#4632E6\"/><stop offset=\"1\" stop-color=\"#2416A0\"/></linearGradient><linearGradient id=\"__U__cl\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\"><stop offset=\"0\" stop-color=\"#FFFFFF\"/><stop offset=\"1\" stop-color=\"#E6E1FF\"/></linearGradient><linearGradient id=\"__U__cr\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\"><stop offset=\"0\" stop-color=\"#CFC6FF\"/><stop offset=\"1\" stop-color=\"#AEA1FF\"/></linearGradient><linearGradient id=\"__U__sp\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\"><stop offset=\"0\" stop-color=\"#16B2E3\"/><stop offset=\".35\" stop-color=\"#1FC796\"/><stop offset=\".65\" stop-color=\"#FFAA2E\"/><stop offset=\"1\" stop-color=\"#FF5C8A\"/></linearGradient><radialGradient id=\"__U__sun\" cx=\".4\" cy=\".35\" r=\".7\"><stop offset=\"0\" stop-color=\"#FFFFFF\"/><stop offset=\"1\" stop-color=\"#FFF1DC\"/></radialGradient><linearGradient id=\"__U__spE\" gradientUnits=\"userSpaceOnUse\" x1=\"27.2\" y1=\"73.6\" x2=\"53.4\" y2=\"26.2\"><stop offset=\"0\" stop-color=\"#16B2E3\"/><stop offset=\".35\" stop-color=\"#1FC796\"/><stop offset=\".65\" stop-color=\"#FFAA2E\"/><stop offset=\"1\" stop-color=\"#FF5C8A\"/></linearGradient></defs><rect width=\"100\" height=\"100\" fill=\"url(#__U__pb)\"/><rect width=\"100\" height=\"100\" fill=\"url(#__U__pg)\"/><g transform=\"translate(-3 0)\"><circle cx=\"70\" cy=\"33\" r=\"10\" fill=\"url(#__U__sun)\"/><circle cx=\"70\" cy=\"33\" r=\"10\" fill=\"none\" stroke=\"url(#__U__sp)\" stroke-width=\"1.6\"/><ellipse cx=\"50\" cy=\"78\" rx=\"30\" ry=\"4\" fill=\"#3A28C9\" opacity=\".25\" filter=\"url(#__U__sh)\"/><polygon points=\"54,25 82,75 26,75\" fill=\"url(#__U__al)\"/><polygon points=\"54,25 82,75 59,75\" fill=\"url(#__U__ar)\"/><path d=\"M53.4 26.2L27.2 73.6\" stroke=\"url(#__U__spE)\" stroke-width=\"1.6\" stroke-linecap=\"round\"/><path d=\"M51.5 34L36 62\" stroke=\"#FFFFFF\" stroke-opacity=\".5\" stroke-width=\"1.1\" stroke-linecap=\"round\"/><path d=\"M14 75.5h72\" stroke=\"#5B48F5\" stroke-opacity=\".35\" stroke-width=\"1.2\" stroke-linecap=\"round\"/><path d=\"M54 20.88 Q54.3465 25.1535 58.620000000000005 25.5 Q54.3465 25.8465 54 30.12 Q53.6535 25.8465 49.379999999999995 25.5 Q53.6535 25.1535 54 20.88Z\" fill=\"#FFFFFF\"/></g></svg>".replace(/__U__/g, u); }
 };
 
 (function(){
@@ -5873,7 +5626,7 @@ const NS = 'http://www.w3.org/2000/svg';
 const REDUCED = Kit.REDUCED;
 
 /* ---------------------------------------------------------------- state */
-let state = null, ix = null, geladen = false, dirty = false, istBeispiel = false;
+let state = null, ix = null, geladen = false, dirty = false;
 let handle = null, dateiname = null;
 let basis;                                        // the file's "saved" stamp when it was opened or last saved (undefined: not known)
 let vgl = null;                                   // {state, name}: the comparison file, only read
@@ -5956,12 +5709,20 @@ function setzeStand(s){
   neuIndex();
 }
 /* one change: fn() changes state; on an error or a touched closed year everything goes back. The caller draws again.
-   o.jahreFrei: closing or reopening a year changes which years are closed, so the closed-year guard steps aside */
+   A closed year is touched when one of its bookings changes, or its closing does (E.abschlussSpur: a booking before it,
+   an imported closing it opens from, the equity account, an account moved between the statements).
+   Every booking line is then written the way the file keeps it (E.zeileNorm), so the check before saving reads back
+   exactly what the window holds. o.jahreFrei: closing or reopening a year changes which years are closed, so the
+   closed-year guard steps aside */
 function aendere(beschreibung, fn, o){
-  const vorher = schnappschuss(), spur = o && o.jahreFrei ? null : gesperrteSpur();
+  const vorher = schnappschuss(), frei = !!(o && o.jahreFrei), zu = (state.abgeschlossen || []).slice();
+  const spur = frei ? null : gesperrteSpur(), abschluss = frei ? [] : E.abschlussSpur(state, zu);
   try {
     fn();
+    state.buchungen.forEach(b => { if (Array.isArray(b.z)) b.z = b.z.map(x => E.zeileNorm(x)).filter(Boolean); });
     if (spur !== null && gesperrteSpur() !== spur) throw new Error('this would change bookings of a closed year. Reopen the year under Years and closings first');
+    const nachher = frei ? [] : E.abschlussSpur(state, zu), j = zu.find((x, i) => nachher[i] !== abschluss[i]);
+    if (j) throw new Error('this would change the closing of ' + j + ', a closed year. Reopen it under Years and closings first');
   } catch (err){
     setzeStand(vorher);
     toast('Not done: ' + (err && err.message ? err.message : err), { type: 'error' }); console.error(err);
@@ -6542,11 +6303,12 @@ function toast(msg, o){
 function meldung(text, o){ o = o || {}; toast(String(text), { type: o.fehler ? 'error' : 'info', action: o.aktion, ms: o.dauer }); }
 window.addEventListener('error', e => { if (geladen) meldung('Unexpected error: ' + (e.message || 'unknown') + '. Your data is unchanged.', { fehler: true }); });
 window.addEventListener('unhandledrejection', e => { if (geladen) meldung('Unexpected error: ' + (e.reason && e.reason.message ? e.reason.message : e.reason), { fehler: true }); });
-window.addEventListener('beforeunload', e => { if (dirty && !istBeispiel){ e.preventDefault(); e.returnValue = ''; } });
+window.addEventListener('beforeunload', e => { if (dirty){ e.preventDefault(); e.returnValue = ''; } });
 /* =====================================================================
    THE FILE: open, save (back into the file, as a new file, a dated copy, to the app folder), the working copy of unsaved
-   changes, a new file, close. Carried over from the app; only the elements it touches are the new ones. Since build
-   2026-10-25.4 one save runs at a time, and a change made while a save is writing stays unsaved.
+   changes, a new file, close. Since build 2026-10-25.4 one save runs at a time, and a change made while a save is
+   writing stays unsaved. Since 2026-10-28.1 every write is read back before the window counts as saved, and each
+   window keeps its own working copy.
    ===================================================================== */
 // Everything in the file is written back, including data this version does not use itself.
 function dateiObjekt(){
@@ -6568,21 +6330,21 @@ function zeigeDateiname(){
   el.textContent = dateiname || "not saved yet";
   el.title = dateiname || "";
 }
-async function uebernehmen(roh, h, name, beispiel){
+async function uebernehmen(roh, h, name){
   let d;
   try{ d = typeof roh === "string" ? JSON.parse(roh) : roh; }
   catch(e){ meldung("This is not an accounting file (the JSON cannot be read).", {fehler:true}); return false; }
   const p = E.pruefeDatei(d, VORLAGE);
   if(p.fehler && p.fehler.length){ meldung(p.fehler.join(" "), {fehler:true}); return false; }
   state = p.daten; ix = E.ctx(state);
-  handle = h || null; dateiname = name || null; geladen = true; istBeispiel = !!beispiel; basis = d && d.saved || null;
+  handle = h || null; dateiname = name || null; geladen = true; basis = d && d.saved || null;
   verlauf.zurueck = []; verlauf.vor = [];
-  starteApp(); sauber();
+  starteApp(); sauber(); verworfeneWeg();
   if(d && d.settings && d.settings.theme) Kit.set(d.settings.theme, "file");
   // spreads booked the old way (straight onto 1300/2300) in open years: once onto 1305/2305 with the carry-over on 31.12.
   { const probe = E.spreadsUmstellen(JSON.parse(JSON.stringify(state)), E.ctx(state), ()=> "x");
-    if(probe.plaene){
-      if(aendere("Spreads moved to "+(state.einstellungen.araJahr||"1305")+"/"+(state.einstellungen.praJahr||"2305"), ()=>{ E.spreadsUmstellen(state, ix, naechsteId); })) render(false);
+    if(probe.plaene && aendere("Spreads moved to "+(state.einstellungen.araJahr||"1305")+"/"+(state.einstellungen.praJahr||"2305"), ()=>{ E.spreadsUmstellen(state, ix, naechsteId); })){
+      render(false);
       meldung(probe.plaene+" spread"+(probe.plaene===1?"":"s")+" of "+probe.jahre.join(", ")+" moved to the in-year accounts ("+probe.buchungen+" bookings changed, "+
         probe.uebertraege+" carried into the next year on 31.12.). Save to keep it, or undo.");
     } }
@@ -6595,7 +6357,7 @@ async function uebernehmen(roh, h, name, beispiel){
   }
   return true;
 }
-async function waehleDatei(input, accept){
+async function waehleDatei(input){
   return new Promise(resolve=>{
     const el = $(input);
     el.value = "";
@@ -6631,13 +6393,18 @@ async function schreibrechte(h){
 }
 /* without file pickers: on the iPhone and iPad the share sheet ("Save to Files" picks the folder, as in CICO and RISE),
    elsewhere a download. An iPad with a keyboard reports a fine pointer, so its touch points count too (a Mac has none).
-   "geteilt" (shared), "geladen" (downloaded) or null (the share sheet was closed) */
-async function ablegen(blob, name){
+   "geteilt" (shared), "geladen" (downloaded) or null (the share sheet was closed). For the books (nurTeilen) a share sheet
+   that cannot take the file gives its error instead of a download: a download the browser blocks or drops would leave
+   the window marked as saved with nothing written */
+async function ablegen(blob, name, nurTeilen){
   if((Kit.TOUCH || navigator.maxTouchPoints > 1) && navigator.canShare){
     try{
       const f = new File([blob], name, {type:blob.type.split(";")[0] || "application/octet-stream"});
       if(navigator.canShare({files:[f]})){ await navigator.share({files:[f]}); return "geteilt"; }
-    }catch(err){ if(err && err.name === "AbortError") return null; }
+    }catch(err){
+      if(err && err.name === "AbortError") return null;
+      if(nurTeilen) return err && typeof err === "object" ? err : new Error(String(err));
+    }
   }
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob); a.download = name;
@@ -6660,34 +6427,37 @@ function gespeichert(stand){
   zeigeDateiname(); arbeitskopie();
   meldung("A change made while saving is not in the file yet. Save again to keep it.");
 }
+/* what is written must read back exactly as the window holds it: the bookings and accounts, debit and credit, every
+   year's closing. A difference is named; nothing is written then */
+function lesbarWieGeschrieben(text){
+  const zurueck = E.pruefeDatei(JSON.parse(text), VORLAGE);
+  if(zurueck.fehler.length) throw new Error(zurueck.fehler.join(" "));
+  const d = zurueck.daten, k1 = E.kontrolle(state, E.ctx(state)), k2 = E.kontrolle(d, E.ctx(d));
+  const anders = (was, hier, dort) => new Error("The check before saving found a difference: "+was+" "+hier+" in this window, "+dort+" in the file.");
+  if(d.buchungen.length !== state.buchungen.length) throw anders("bookings", state.buchungen.length, d.buchungen.length);
+  if(d.konten.length !== state.konten.length) throw anders("accounts", state.konten.length, d.konten.length);
+  if(Math.abs(k1.soll-k2.soll) > .005 || Math.abs(k1.haben-k2.haben) > .005) throw anders("debit / credit", tsd(k1.soll, 2)+" / "+tsd(k1.haben, 2), tsd(k2.soll, 2)+" / "+tsd(k2.haben, 2));
+  Object.keys(E.jahreMitBuchungen(state)).forEach(j=>{
+    const a = E.saldoPer(state, j+"-12-31"), b = E.saldoPer(d, j+"-12-31");
+    Object.keys(Object.assign({}, a, b)).forEach(nr=>{ if(Math.abs((a[nr]||0)-(b[nr]||0)) > .005) throw anders("the closing "+j+" of account "+nr+":", tsd(a[nr]||0, 2), tsd(b[nr]||0, 2)); });
+  });
+}
 async function speichernJetzt(alsNeu, mitDatum){
-  if(istBeispiel && !mitDatum) alsNeu = true;
   const stand = aenderungen;
   // the file carries the moment it was saved: the next save compares it with the file on disk (fremdGespeichert)
-  const vorher = state.saved, zurueckSetzen = ()=>{ state.saved = vorher; };
-  state.saved = new Date().toISOString();
-  const obj = dateiObjekt();
-  const text = JSON.stringify(obj, null, 1);
-  // Integrität: was geschrieben wird, muss sich wieder genau so lesen lassen
-  try{
-    const zurueck = E.pruefeDatei(JSON.parse(text), VORLAGE);
-    const k1 = E.kontrolle(state, ix), k2 = E.kontrolle(zurueck.daten, E.ctx(zurueck.daten));
-    if(zurueck.fehler.length || zurueck.daten.buchungen.length !== state.buchungen.length ||
-       zurueck.daten.konten.length !== state.konten.length || Math.abs(k1.soll-k2.soll) > .005 || Math.abs(k1.haben-k2.haben) > .005)
-      throw new Error("The check before saving failed.");
-    // every year must close exactly as before, after writing and reading back
-    E.ctx(zurueck.daten);
-    Object.keys(E.jahreMitBuchungen(state)).forEach(j=>{
-      const a = E.saldoPer(state, j+"-12-31"), b = E.saldoPer(zurueck.daten, j+"-12-31");
-      Object.keys(Object.assign({}, a, b)).forEach(nr=>{ if(Math.abs((a[nr]||0)-(b[nr]||0)) > .005) throw new Error("The closing "+j+" would change on account "+nr+"."); });
-    });
-  }catch(err){ zurueckSetzen(); meldung("Not saved: "+err.message+" The data in this window is unchanged.", {fehler:true}); return false; }
+  const vorher = state.saved, stamp = new Date().toISOString(), zurueckSetzen = ()=>{ state.saved = vorher; };
+  state.saved = stamp;
+  const text = JSON.stringify(dateiObjekt(), null, 1);
+  try{ lesbarWieGeschrieben(text); }
+  catch(err){ zurueckSetzen(); meldung("Not saved: "+err.message+" The data in this window is unchanged.", {fehler:true}); return false; }
   /* Save to folder (computer, once the app folder is chosen): today's file into the app folder, the data files it
-     replaces into the backup folder (Kit.folder.save, Design Lab §6.4) */
+     replaces into the backup folder (Kit.folder.save, Design Lab §6.4). The written file must read back exactly */
   if(!alsNeu && !mitDatum && FSA && Kit.folder.can && await Kit.folder.get()){
     let r;
-    try{ r = await Kit.folder.save({name:vorschlag(false), text:text, copyName:vorschlag(true), basis:basis,
-      isData:istDatendatei, stamp:stampOf, check:liestZurueck, ask:ordnerFrage}); }
+    const o = {name:vorschlag(false), text:text, copyName:vorschlag(true), basis:basis, isData:istDatendatei, stamp:stampOf, check:t => t === text,
+      // "Save as a new file": the copy gets a name that is free in the app folder, so an earlier copy is never replaced
+      ask:async fo => { const w = await ordnerFrage(fo); if(w === "neu") o.copyName = await freierName(await Kit.folder.get(), vorschlag(true)); return w; }};
+    try{ r = await Kit.folder.save(o); }
     catch(err){ zurueckSetzen(); meldung("Not saved to the folder: "+(err && err.message || err), {fehler:true}); return false; }
     if(r.cancel){ zurueckSetzen(); return false; }
     if(r.missing || r.denied){
@@ -6695,7 +6465,7 @@ async function speichernJetzt(alsNeu, mitDatum){
       meldung(r.missing ? "“"+r.folder+"” cannot be found any more. Moved or renamed? Choose it again." : "No access to “"+r.folder+"”. Choose it again.", {fehler:true});
       ordnerDialog(); return false;
     }
-    handle = r.handle; dateiname = r.name; istBeispiel = false; basis = state.saved;
+    handle = r.handle; dateiname = r.name; basis = stamp;
     meldung("Saved to "+r.folder+": "+r.name+(r.moved.length ? ". Moved to "+r.backup+": "+r.moved.map(m=>m[0]).join(", ") : "")+
       (r.noBackup ? ". Choose a backup folder to move the older files." : ""));
     gespeichert(stand);
@@ -6703,38 +6473,64 @@ async function speichernJetzt(alsNeu, mitDatum){
   }
   if(FSA){
     try{
-      let h = handle, alsKopie = !!mitDatum;
+      const insBuch = !alsNeu && !mitDatum;
+      let h = insBuch && neuerName(dateiname) ? handle : null, alsKopie = !!mitDatum;
       /* writing back into the opened file: was it saved elsewhere since this window opened it? */
-      if(!alsNeu && !mitDatum && h && neuerName(dateiname)){
-        const fr = await fremdGespeichert(h);
-        if(fr){ const w = await konfliktFrage(h.name, fr.saved); if(!w){ zurueckSetzen(); return false; } if(w === "neu"){ h = null; alsKopie = true; } }
+      if(h){ const w = await trotzFremd(h); if(w === false){ zurueckSetzen(); return false; } if(w === "neu"){ h = null; alsKopie = true; } }
+      if(!h){
+        h = await zielWaehlen(alsKopie);
+        /* the books saved through the picker (a new file, a restored working copy, an old file name): the same question
+           when the chosen file holds a version saved elsewhere */
+        if(insBuch && !alsKopie){ const w = await trotzFremd(h); if(w === false){ zurueckSetzen(); return false; } if(w === "neu") h = await zielWaehlen(true); }
       }
-      if(alsNeu || mitDatum || !h || !neuerName(dateiname))
-        h = await window.showSaveFilePicker({suggestedName:vorschlag(alsKopie), types:[{description:"Buchhaltung", accept:{"application/json":[".json"]}}]});
       if(!(await schreibrechte(h))){ zurueckSetzen(); meldung("Saving needs write access to the file.", {fehler:true}); return false; }
       const strom = await h.createWritable();
       await strom.write(text); await strom.close();
+      // read back what was written: a file that does not hold it is reported, and the window stays unsaved
+      let da = null; try{ da = await (await h.getFile()).text(); }catch(e){}
+      if(da !== text) throw new Error(h.name+" did not read back the same after writing. Save again, or save as a new file.");
       if(mitDatum){ zurueckSetzen(); meldung("Dated copy saved: "+h.name); }
-      else { handle = h; dateiname = h.name; istBeispiel = false; basis = state.saved; meldung("Saved to "+h.name); gespeichert(stand); }
+      else { handle = h; dateiname = h.name; basis = stamp; meldung("Saved to "+h.name); gespeichert(stand); }
       return true;
     }catch(err){ zurueckSetzen(); if(err && err.name !== "AbortError") meldung("Could not save: "+err.message, {fehler:true}); return false; }
   }
   const name = vorschlag(mitDatum);
-  const wie = await ablegen(new Blob([text],{type:"application/json;charset=utf-8"}), name);
-  if(!wie){ zurueckSetzen(); meldung("Not saved: the share sheet was closed."); return false; }
-  if(!mitDatum){ dateiname = name; istBeispiel = false; basis = state.saved; } else zurueckSetzen();
+  const wie = await ablegen(new Blob([text],{type:"application/json;charset=utf-8"}), name, true);
+  if(typeof wie !== "string"){
+    zurueckSetzen();
+    if(wie) meldung("Not saved: the share sheet could not take the file ("+(wie.message || wie.name || "no reason given")+"). Nothing was written; try Save again.", {fehler:true});
+    else meldung("Not saved: the share sheet was closed.");
+    return false;
+  }
+  if(!mitDatum){ dateiname = name; basis = stamp; } else zurueckSetzen();
   meldung(wie === "geteilt" ? (mitDatum ? "Dated copy shared: " : "Shared as ")+name : (mitDatum ? "Dated copy downloaded: " : "Downloaded as ")+name);
   if(!mitDatum) gespeichert(stand);
   return true;
 }
+const zielWaehlen = alsKopie => window.showSaveFilePicker({suggestedName:vorschlag(alsKopie), types:[{description:"Buchhaltung", accept:{"application/json":[".json"]}}]});
+/* the name itself when no file in the folder has it, else "… 2.json", "… 3.json" … */
+async function freierName(ordner, name){
+  for(let i = 1; ordner && i < 1000; i++){
+    const n = i === 1 ? name : name.replace(/(\.json)$/i, " "+i+"$1");
+    try{ await ordner.getFileHandle(n); }catch(e){ if(!e || e.name !== "TypeMismatchError") return n; }
+  }
+  return name;
+}
 
 /* ---------- Saved elsewhere since it was opened ----------------------- */
 // The file's own "saved" stamp against the one this window started from, so a file sync that only touches the
-// file date does not count. null: nothing to worry about (also when the file is gone or cannot be read).
+// file date does not count. null: nothing to worry about (also when the file is gone, empty or cannot be read).
 async function fremdGespeichert(h){
   if(basis === undefined) return null;
   let text; try{ text = await (await h.getFile()).text(); }catch(e){ return null; }
+  if(!String(text).trim()) return null;
   try{ const s = JSON.parse(text).saved || null; return s !== (basis || null) ? {saved:s} : null; }catch(e){ return {saved:null}; }
+}
+/* null: go on and write; "neu": save as a new file instead; false: cancelled */
+async function trotzFremd(h){
+  const fr = await fremdGespeichert(h); if(!fr) return null;
+  const w = await konfliktFrage(h.name, fr.saved);
+  return w === "ersetzen" ? null : (w === "neu" ? "neu" : false);
 }
 const wannText = s => s ? new Date(s).toLocaleString("en-GB", {day:"numeric", month:"short", hour:"2-digit", minute:"2-digit"}) : "";
 /* three choices: "ersetzen" (replace it), "neu" (save as a new file) or null (cancel) */
@@ -6759,10 +6555,6 @@ function ordnerFrage(fo){
    second save adds, the old ACCOUNTING names, the daily backups of earlier builds. Copies stay where they are */
 function istDatendatei(n){ return /\.json$/i.test(n) && !/COPY/i.test(n) && (/_EVEN( BACKUP)?( \d+| \(\d+\))?\.json$/i.test(n) || /ACCOUNTING/i.test(n)); }
 function stampOf(t){ try{ return JSON.parse(t).saved || null; }catch(e){ return null; } }
-function liestZurueck(t){
-  try{ const z = E.pruefeDatei(JSON.parse(t), VORLAGE); return !z.fehler.length && z.daten.buchungen.length === state.buchungen.length && z.daten.konten.length === state.konten.length; }
-  catch(e){ return false; }
-}
 
 /* ---------- Save to folder (computer): the app folder and its backup folder ---------- */
 async function ordnerDialog(){
@@ -6793,53 +6585,90 @@ async function ordnerDialog(){
   if(w === "jetzt") speichern(false, false);
 }
 
-/* ---------- Working copy (IndexedDB): unsaved changes survive a crash or a closed tab ---------- */
-let akTimer = null, akFehler = false;
+/* ---------- Working copy (IndexedDB): unsaved changes survive a crash or a closed tab ----------
+   One per window ("arbeitskopie:<window>"), so two windows never replace or remove each other's. While a window is open
+   it holds a lock of that name (Web Locks): the start screen offers only the copies of windows that are gone, and
+   opening another file drops only those. Without Web Locks every other copy counts as one of a window that is gone.
+   A copy of an earlier build ("arbeitskopie") is offered the same way */
+const FENSTER = Date.now().toString(36) + Math.random().toString(36).slice(2, 7), AK = "arbeitskopie:" + FENSTER;
+try{ if(navigator.locks && navigator.locks.request) navigator.locks.request("even:" + AK, () => new Promise(()=>{})).catch(()=>{}); }catch(e){}
+let akTimer = null, akFehler = false, verworfen = [];
+/* the copy is written at once with sofort (going to the background, closing, a restore), else 1.2 s after the last
+   change; with sofort it gives true once it is stored */
 function arbeitskopie(sofort){
   clearTimeout(akTimer);
   const tu = ()=>{
-    if(!geladen || !dirty || istBeispiel || !state) return;
-    idbSchreiben("arbeitskopie", {at:new Date().toISOString(), name:dateiname || "", basis:basis === undefined ? null : basis, daten:dateiObjekt()}).then(ok=>{
-      if(!ok && !akFehler){ akFehler = true; meldung("This browser refused to keep a copy of your unsaved changes. Save regularly.", {fehler:true}); } });
+    if(!geladen || !dirty || !state) return Promise.resolve(false);
+    return idbSchreiben(AK, {at:new Date().toISOString(), name:dateiname || "", basis:basis === undefined ? null : basis, daten:dateiObjekt()}).then(ok=>{
+      if(!ok && !akFehler){ akFehler = true; meldung("This browser refused to keep a copy of your unsaved changes. Save regularly.", {fehler:true}); }
+      return ok; });
   };
-  if(sofort) tu(); else akTimer = setTimeout(tu, 1200);
+  if(sofort) return tu();
+  akTimer = setTimeout(tu, 1200);
+  return null;
 }
-function arbeitskopieWeg(){ clearTimeout(akTimer); idbLoeschen("arbeitskopie"); }
+function arbeitskopieWeg(){ clearTimeout(akTimer); idbLoeschen(AK); }
 document.addEventListener("visibilitychange", ()=>{ if(document.hidden) arbeitskopie(true); });
 window.addEventListener("pagehide", ()=> arbeitskopie(true));
-/* the start screen offers the unsaved changes this browser kept */
-async function zeigeArbeitskopie(){
-  const ak = await idbLesen("arbeitskopie"), w = $("#start .wahl"), alt = $("#s-weiter");
-  if(alt) alt.remove();
-  if(!w || !ak || !ak.daten) return;
-  const b = document.createElement("button"); b.type = "button"; b.id = "s-weiter"; b.className = "ev-choice";
-  b.innerHTML = `<span class="ev-choice__i" aria-hidden="true"><svg width="22" height="22"><use href="#i-zurueck"/></svg></span><span><b>Restore unsaved changes</b><small>From ${fd(String(ak.at).slice(0,10))} ${new Date(ak.at).toTimeString().slice(0,5)}${ak.name ? ", based on "+esc(ak.name) : ""}. They never reached a file.</small></span>`;
-  b.onclick = async ()=>{
-    if(!(await uebernehmen(ak.daten, null, ak.name || null))) return;
-    basis = ak.basis; markiere();
-    meldung("Unsaved changes restored. Save to put them into your file.");
-  };
-  w.insertBefore(b, w.firstChild);
+/* the copies of windows that are gone, newest first */
+async function alteKopien(){
+  const keys = (await idbSchluessel()).filter(k => /^arbeitskopie(:|$)/.test(k) && k !== AK);
+  let offen = new Set();
+  try{ if(navigator.locks && navigator.locks.query){ const q = await navigator.locks.query(); offen = new Set((q.held || []).map(l => String(l.name).replace(/^even:/, ""))); } }catch(e){}
+  const liste = [];
+  for(const k of keys){ if(offen.has(k)) continue; const ak = await idbLesen(k); if(ak && ak.daten) liste.push(Object.assign({key:k}, ak)); }
+  return liste.sort((a, b) => String(b.at).localeCompare(String(a.at)));
 }
-/* opening or starting another file replaces those unsaved changes: ask first */
+/* the start screen offers the unsaved changes this browser kept, one button per window */
+async function zeigeArbeitskopie(){
+  const alte = await alteKopien(), w = $("#start .wahl");
+  $$("#start .ev-weiter").forEach(x => x.remove());
+  if(!w || !alte.length) return;
+  alte.slice().reverse().forEach((ak, n) => {
+    const b = document.createElement("button"); b.type = "button"; b.className = "ev-choice ev-weiter"; if(n === alte.length - 1) b.id = "s-weiter";
+    b.innerHTML = `<span class="ev-choice__i" aria-hidden="true"><svg width="22" height="22"><use href="#i-zurueck"/></svg></span><span><b>Restore unsaved changes</b><small>From ${fd(String(ak.at).slice(0,10))} ${new Date(ak.at).toTimeString().slice(0,5)}${ak.name ? ", based on "+esc(ak.name) : ""}. They never reached a file.</small></span>`;
+    b.onclick = async ()=>{
+      if(!(await uebernehmen(ak.daten, null, ak.name || null))) return;
+      basis = ak.basis; markiere();
+      // this window keeps them now: its own copy is stored first, only then the old one goes
+      if(await arbeitskopie(true)) idbLoeschen(ak.key);
+      meldung("Unsaved changes restored. Save to put them into your file.");
+    };
+    w.insertBefore(b, w.firstChild);
+  });
+}
+/* opening or starting another file replaces those unsaved changes: ask first. They are dropped once the other file is
+   open (verworfeneWeg), so a cancelled picker keeps them */
 async function ohneArbeitskopie(fn){
-  const ak = !geladen ? await idbLesen("arbeitskopie") : null;
-  if(ak && ak.daten){
-    const ja = await frage("Drop the unsaved changes?", "This browser holds changes that never reached a file. Opening or starting another file replaces them."+
+  const alte = !geladen ? await alteKopien() : [];
+  if(alte.length){
+    const ja = await frage("Drop the unsaved changes?", (alte.length > 1 ? "This browser holds changes of "+alte.length+" windows that never reached a file." : "This browser holds changes that never reached a file.")+" Opening or starting another file replaces them."+
       "<p class='klein mut' style='margin:8px 0 0'>To keep them: Cancel, then Restore unsaved changes and Save.</p>",
       [{text:"Cancel", wert:false, art:"leicht"}, {text:"Drop them", wert:true, art:"gefahr"}]);
     if(!ja) return;
+    verworfen = alte.map(a => a.key);
   }
   fn();
 }
+function verworfeneWeg(){ verworfen.forEach(k => idbLoeschen(k)); verworfen = []; }
 
-function idb(){ return new Promise((ok, nein)=>{ const r = indexedDB.open("buchhaltung", 1);
-  r.onupgradeneeded = ()=> r.result.createObjectStore("kv"); r.onsuccess = ()=> ok(r.result); r.onerror = ()=> nein(r.error); }); }
+/* one connection for the whole page, so writes and removals reach the store in the order they were asked for */
+let dbP = null;
+function idb(){
+  if(dbP) return dbP;
+  dbP = new Promise((ok, nein)=>{ const r = indexedDB.open("buchhaltung", 1);
+    r.onupgradeneeded = ()=> r.result.createObjectStore("kv");
+    r.onsuccess = ()=>{ const db = r.result; db.onclose = ()=>{ dbP = null; }; db.onversionchange = ()=>{ db.close(); dbP = null; }; ok(db); };
+    r.onerror = ()=>{ dbP = null; nein(r.error); }; });
+  return dbP;
+}
 async function idbLesen(k){ try{ const db = await idb(); return await new Promise((ok, nein)=>{ const t = db.transaction("kv").objectStore("kv").get(k);
-  t.onsuccess = ()=> ok(t.result); t.onerror = ()=> nein(t.error); }); }catch(e){ return null; } }
+  t.onsuccess = ()=> ok(t.result); t.onerror = ()=> nein(t.error); }); }catch(e){ dbP = null; return null; } }
+async function idbSchluessel(){ try{ const db = await idb(); return await new Promise((ok, nein)=>{ const t = db.transaction("kv").objectStore("kv").getAllKeys();
+  t.onsuccess = ()=> ok((t.result || []).map(String)); t.onerror = ()=> nein(t.error); }); }catch(e){ dbP = null; return []; } }
 async function idbSchreiben(k, v){ try{ const db = await idb(); await new Promise((ok, nein)=>{ const t = db.transaction("kv","readwrite").objectStore("kv").put(v, k);
-  t.onsuccess = ()=> ok(); t.onerror = ()=> nein(t.error); }); return true; }catch(e){ return false; } }
-async function idbLoeschen(k){ try{ const db = await idb(); db.transaction("kv","readwrite").objectStore("kv").delete(k); }catch(e){} }
+  t.onsuccess = ()=> ok(); t.onerror = ()=> nein(t.error); }); return true; }catch(e){ dbP = null; return false; } }
+async function idbLoeschen(k){ try{ const db = await idb(); db.transaction("kv","readwrite").objectStore("kv").delete(k); }catch(e){ dbP = null; } }
 function leererStand(mandant, jahr, buchungen){
   return E.pruefeDatei({mandant:mandant, jahr:jahr, waehrung:"CHF", kurse:klon(VORLAGE.kurse),
     konten:klon(VORLAGE.konten), gruppen:klon(VORLAGE.gruppen), buckets:klon(VORLAGE.buckets),
@@ -6857,8 +6686,8 @@ async function neu(){
   const jahr = (j >= 1900 && j <= 2200) ? j : vorschlagJahr;
   state = leererStand(VORLAGE.mandant || "Untitled", jahr, []);
   state.ui.tab = "buchen"; ix = E.ctx(state);
-  handle = null; dateiname = null; basis = null; geladen = true; istBeispiel = false; verlauf.zurueck = []; verlauf.vor = [];
-  starteApp(); markiere();
+  handle = null; dateiname = null; basis = null; geladen = true; verlauf.zurueck = []; verlauf.vor = [];
+  starteApp(); markiere(); verworfeneWeg();
   const imp = await frage("Opening balances "+jahr, "Import the closing "+(jahr-1)+" now? It becomes the opening balance automatically: balance sheet accounts carry over, equity and the result of "+(jahr-1)+" roll into account "+(state.einstellungen.gewinnvortrag||"2800")+". Nothing is booked.",
     [{text:"Later", wert:false, art:"leicht"}, {text:"Import now", wert:true}]);
   if(imp) importDialog();
@@ -6872,10 +6701,10 @@ async function schliessen(){
   zeigeArbeitskopie();
 }
 async function verwerfenOk(){
-  if(!dirty || istBeispiel) return true;
+  if(!dirty) return true;
   const w = await frage("Unsaved changes", "This file has changes that are not saved yet.",
     [{text:"Cancel", wert:"nein", art:"leicht"}, {text:"Discard", wert:"weg", art:"gefahr"}, {text:"Save", wert:"speichern"}]);
-  if(w === "speichern") return await speichern(false, false);
+  if(w === "speichern") return await speichern(false, false) && !dirty;
   if(w === "weg") arbeitskopieWeg();
   return w === "weg";
 }
@@ -7108,7 +6937,9 @@ function pruefe(){
     if (Math.abs(diff) >= .005) p.push(['fehler', 'Debit and credit differ by ' + tsd(diff, 2) + '.']);
   }
   if (!(entwurf.text || '').trim()) p.push(['warn', 'Without a text the booking is hard to find later.']);
-  D.forEach(z => { const k = ix.km[z.k]; if (k && k.wkz && (z.s || z.h) && !(z.fw > 0)) p.push(['warn', 'No ' + k.wkz + ' amount for ' + k.nr + '; its currency balance will be off.']); });
+  D.forEach(z => { const k = ix.km[z.k]; if (!k || !k.wkz || !(z.s || z.h)) return;
+    if (!(z.fw > 0)) p.push(['warn', 'No ' + k.wkz + ' amount for ' + k.nr + '; its currency balance will be off.']);
+    else if (!(z.kurs > 0)) p.push(['warn', 'No rate for the ' + k.wkz + ' amount of ' + k.nr + ': without one the ' + k.wkz + ' amount is not kept.']); });
   const v = verteilungsVorschau(D);
   if (v){ if (!v.ok) v.fehler.forEach(x => p.push(['fehler', x])); else v.warnungen.forEach(x => p.push(['warn', x])); }
   const fehler = p.some(x => x[0] === 'fehler') || !soll || Math.abs(diff) >= .005;
@@ -7157,9 +6988,9 @@ function buchenIntern(r){
     const id = bearbeitet;
     ok = aendere('Booking changed', () => {
       const i = state.buchungen.findIndex(b => b.id === id), alt = state.buchungen[i];
-      const neu = Object.assign({ id }, kopf, { z: zeilen }); if (alt.beleg) neu.beleg = alt.beleg;
-      if (alt.eb) neu.eb = true; if (alt.plan) neu.plan = alt.plan;
-      state.buchungen[i] = neu;
+      if (!alt) throw new Error('this booking is no longer in the file');
+      // what the form does not show (voucher, opening flag, plan, fields of other versions) stays as it was
+      state.buchungen[i] = Object.assign({}, alt, kopf, { id, z: zeilen, beleg: alt.beleg || '' });
     });
     text = 'Saved';
   } else if (r.vt && r.vt.ok){
@@ -7488,24 +7319,29 @@ function renderZeilenmodus(fokus){
   box.appendChild(h('div', { class: 'ev-lines__head' }, [h('span', {}, ['Account']), h('span', { class: 'r' }, ['Debit']), h('span', { class: 'r' }, ['Credit']), h('span', {}, ['Line text']), h('span')]));
   entwurf.z.forEach((z, i) => {
     const k = ix.km[z.k], wkz = k && k.wkz;
+    if (wkz && !z.kurs) z.kurs = String(state.kurse[wkz] || '');            // the rate shown is the rate booked
     const feld = (f, attrs) => h('input', Object.assign({ class: 'input' + (f === 'k' || f === 't' ? '' : ' num'), 'data-zl': i, 'data-f': f, autocomplete: 'off' }, attrs));
     box.appendChild(h('div', { class: 'ev-lines__row' }, [
       h('div', { class: 'field' + (z.k && !k ? ' is-error' : '') }, [feld('k', { value: k ? z.k + ' ' + k.name : z.k, placeholder: 'Account', 'aria-label': 'Account, line ' + (i + 1) }),
         h('span', { class: 'field__hint ev-kinfo', 'data-zlinfo': i }),
-        wkz ? h('div', { class: 'ev-lines__fx' }, [feld('fw', { value: z.fw, placeholder: wkz, 'aria-label': 'Foreign amount' }), feld('kurs', { value: z.kurs || state.kurse[wkz] || '', placeholder: 'Rate', 'aria-label': 'Rate' })]) : null]),
+        wkz ? h('div', { class: 'ev-lines__fx' }, [feld('fw', { value: z.fw, placeholder: wkz, 'aria-label': 'Foreign amount' }), feld('kurs', { value: z.kurs, placeholder: 'Rate', 'aria-label': 'Rate' })]) : null]),
       feld('s', { value: z.s, inputmode: 'decimal', placeholder: 'Debit', 'aria-label': 'Debit, line ' + (i + 1) }),
       feld('h', { value: z.h, inputmode: 'decimal', placeholder: 'Credit', 'aria-label': 'Credit, line ' + (i + 1) }),
       feld('t', { value: z.t, placeholder: 'optional', 'aria-label': 'Line text, line ' + (i + 1) }),
       h('button', { type: 'button', class: 'btn btn--ghost btn--sm btn--icon', tabindex: '-1', 'aria-label': 'Remove line ' + (i + 1), html: icon('x', 14),
         onclick: () => { if (entwurf.z.length > 2) entwurf.z.splice(i, 1); else entwurf.z[i] = leereZeile(); renderZeilenmodus(); aktualisiere(); } })]));
   });
-  box.appendChild(h('button', { type: 'button', class: 'btn btn--ghost btn--sm', onclick: () => { entwurf.z.push(leereZeile()); renderZeilenmodus({ i: entwurf.z.length - 1, f: 'k' }); aktualisiere(); } }, ['Add line']));
+  box.appendChild(h('button', { type: 'button', class: 'btn btn--ghost btn--sm', id: 'bu-zeile-neu', onclick: () => { entwurf.z.push(leereZeile()); renderZeilenmodus({ i: entwurf.z.length - 1, f: 'k' }); aktualisiere(); } }, ['Add line']));
   $$('#bu-zeilen input').forEach(inp => {
     const i = +inp.dataset.zl, f = inp.dataset.f;
     if (f === 'k'){
-      kontoWahl(inp, k => { const z = entwurf.z[i]; if (!z) return; const warFW = !!(ix.km[z.k] || {}).wkz;
+      /* a foreign-currency account brings its amount and rate fields (the row is drawn again when they come or go) */
+      kontoWahl(inp, k => { const z = entwurf.z[i]; if (!z) return; const hatFW = !!$('[data-zl="' + i + '"][data-f="fw"]');
         z.k = k ? k.nr : ''; fokusKonto = z.k || fokusKonto; inp.value = k ? k.nr + ' ' + k.name : ''; inp.closest('.field').classList.remove('is-error');
-        if (!!(k || {}).wkz !== warFW) renderZeilenmodus({ i, f: 's' }); else kontoInfo(z.k, $('[data-zlinfo="' + i + '"]'));
+        if (k && k.wkz && !z.kurs) z.kurs = String(state.kurse[k.wkz] || '');
+        if (!!(k || {}).wkz !== hatFW){ renderZeilenmodus();                   // the cursor after the key's own move: the foreign amount, else debit
+          setTimeout(() => { const el = $('[data-zl="' + i + '"][data-f="' + (k && k.wkz ? 'fw' : 's') + '"]'); if (el) el.focus(); }); }
+        else kontoInfo(z.k, $('[data-zlinfo="' + i + '"]'));
         aktualisiere(); renderVerlauf(); }, () => (entwurf.z[i] || {}).k);
       inp.addEventListener('input', () => { const t = inp.value.trim().split(/\s+/)[0]; entwurf.z[i].k = /^\d[\d.]*$/.test(t) ? t : inp.value.trim(); aktualisiere(); });
       kontoInfo(entwurf.z[i].k, $('[data-zlinfo="' + i + '"]'));
@@ -7817,15 +7653,15 @@ function initBuchen(){
   hauptKonto('#bu-haben', 'haben');
   textVorschlag($('#bu-text'));
   ['#bu-datum', '#bu-text', '#bu-betrag'].forEach(s => $(s).addEventListener('keydown', e => { if (e.key === 'Enter' && !e.defaultPrevented){ e.preventDefault(); enter(); } }));
-  /* Tab stays in the booking card: out of the last field to Book, then through the card's buttons (Copy, Clear, Delete
-     where shown) and round to the first field; Shift+Tab goes back the same way. Safari (iPad, iPhone, Mac) skips buttons
+  /* Tab stays in the booking card: out of the last field to Book (in Lines first to Add line), then through the card's
+     buttons (Copy, Clear, Delete where shown) and round to the first field; Shift+Tab goes back the same way. Safari (iPad, iPhone, Mac) skips buttons
      on Tab, so the focus left the card for the recent bookings far down the page and scrolled there */
   const maske = $('#maske');
   const sichtbar = el => { for (let x = el; x && x !== maske; x = x.parentElement) if (x.hidden || getComputedStyle(x).display === 'none') return false; return true; };
   maske.addEventListener('keydown', e => {
     if (e.key !== 'Tab' || e.defaultPrevented) return;
     const felder = $$('input:not([type="hidden"]), select, textarea', maske).filter(el => el.tabIndex >= 0 && !el.disabled && sichtbar(el));
-    const knoepfe = $$('.ev-actions .btn', maske).filter(el => !el.disabled && sichtbar(el));
+    const knoepfe = $$('#bu-zeile-neu, .ev-actions .btn', maske).filter(el => !el.disabled && sichtbar(el));     // Lines: Add line first
     const zu = el => { if (!el) return; e.preventDefault(); el.focus(); };
     const k = knoepfe.indexOf(e.target);
     if (k >= 0) zu(e.shiftKey ? (k > 0 ? knoepfe[k - 1] : felder[felder.length - 1]) : (k < knoepfe.length - 1 ? knoepfe[k + 1] : felder[0]));
@@ -7950,28 +7786,19 @@ function initHauptbuch(){
 }
 /* =====================================================================
    ENGINE of the Financial Statements file
-   Copied unchanged from that file: statements, drilldowns, cash flow,
-   investments with forecast, overview, PDF and Excel export, and the
-   mapping editors. It reads its data through S: the same shape as
-   there, but the reports are built from the bookings.
-   Hooks into the app: S.toast, S.touch, S.go.
+   Taken from that file: statements, cash flow, investments with
+   forecast and the Excel workbook. Its own screens, charts and PDF
+   were dropped on 28.10.2026 (EVEN draws its own). It reads its data
+   through S: the same shape as there, but the reports are built from
+   the bookings. Hooks into the app: S.toast, S.touch, S.go.
    ===================================================================== */
 function FSKern(S){
 "use strict";
 const NF2 = {format: v => new Intl.NumberFormat("de-CH", {minimumFractionDigits:2, maximumFractionDigits:2}).format(v).replace(/[\u2019\u0027\u00A0\u202F]/g, "'")};
-const NF0 = {format: v => new Intl.NumberFormat("de-CH", {maximumFractionDigits:0}).format(v).replace(/[\u2019\u0027\u00A0\u202F]/g, "'")};
-const $ = (s, r) => (r || document).querySelector(s);
-const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
-const isLight = () => true;
 const r2 = (v) => Math.round((v + Number.EPSILON) * 100) / 100;
 const nil = (v) => !isFinite(v) || Math.abs(v) < 0.005;
 
 function fmt(v, force) { return nil(v) ? (force ? "0.00" : "–") : NF2.format(r2(v)).replace(/^-/, "\u2212"); }
-function fmtK(v) {
-  const a = Math.abs(v);
-  const t = a >= 1e6 ? (v / 1e6).toFixed(2) + "m" : NF0.format(Math.round(v));
-  return t.replace(/^-/, "\u2212");
-}
 function fmtPct(cur, cmp) {
   if (!isFinite(cur) || !isFinite(cmp) || Math.abs(cmp) < 0.005) return "";
   const p = ((cur - cmp) / Math.abs(cmp)) * 100;
@@ -8146,66 +7973,10 @@ function statementHTML(struct, p, c, showZeros, flat, summary) {
   return head + "<tbody>" + out.join("") + "</tbody>";
 }
 
-function renderStatement(tbl, struct, p, c, showZeros) {
-  tbl.innerHTML = statementHTML(struct, p, c, showZeros, false);
-  wireDrill(tbl);
-}
 
-function wireDrill(tbl) {
-  $$("tr.grp[data-g]", tbl).forEach((tr) => {
-    tr.addEventListener("click", () => {
-      const g = tr.getAttribute("data-g");
-      const open = !tr.classList.contains("open");
-      tr.classList.toggle("open", open);
-      $$("tr.g-" + g, tbl).forEach((r) => {
-        r.classList.toggle("hide", !open);
-        r.classList.toggle("show", open);
-      });
-    });
-  });
-}
-function setAll(tblId, open) {
-  const tbl = document.getElementById(tblId);
-  $$("tr.grp[data-g]", tbl).forEach((tr) => {
-    tr.classList.toggle("open", open);
-    $$("tr.g-" + tr.getAttribute("data-g"), tbl).forEach((r) => {
-      r.classList.toggle("hide", !open);
-      r.classList.toggle("show", open);
-    });
-  });
-}
 
-function kpi(el, items) {
-  el.innerHTML = items.map((i) =>
-    '<div class="kpi ' + (i.tone || "") + (i.act ? " clickable" : "") + '"' +
-    (i.act ? ' data-act="' + i.act + '" tabindex="0" role="button"' : "") + '><div class="bar"></div>' +
-    (i.act ? '<span class="more">⤢</span>' : "") +
-    '<div class="k">' + esc(i.k) + "</div>" +
-    '<div class="v ' + (i.vc || "") + '">' + i.v + "</div>" +
-    (i.d ? '<div class="d">' + i.d + "</div>" : "") +
-    (i.cmp ? '<div class="cmp">' + i.cmp + "</div>" : "") + "</div>"
-  ).join("");
-}
 
-/** "+1'234 vs FY 2023" for a KPI tile, coloured by direction.
-    invert = 1 where a smaller figure is the better outcome (liabilities). */
-function vsPrev(cur, prev, label, invert) {
-  if (!isFinite(cur) || !isFinite(prev)) return "";
-  const d = r2(cur - prev);
-  if (nil(d)) return "unchanged vs " + esc(label);
-  const good = invert ? d < 0 : d > 0;
-  return '<span class="' + (good ? "pos" : "neg") + '">' + (d > 0 ? "+" : "−") + fmtK(Math.abs(d)) +
-    "</span> vs " + esc(label);
-}
 
-/** whole months between the closing dates of two reports */
-function spanMonths(from, to) {
-  const ym = (p) => {
-    const R = rep(p), m = R && /^(\d{4})-(\d{2})/.exec(String(R.asOf));
-    return m ? +m[1] * 12 + +m[2] : NaN;
-  };
-  return ym(to) - ym(from);
-}
 /** market value of the investments ticked under Data & mapping */
 function investedAt(p) {
   return r2(investments().filter((i) => i.include)
@@ -8545,62 +8316,6 @@ function buildCF(p, c) {
   return cf;
 }
 
-/* ---------------------------------------------------------------------- */
-let CF_UID = 0;
-function cfRows(cf, flat, summary) {
-  const out = [];
-  const sec = (l) => out.push('<tr class="r sec"><td colspan="3">' + esc(l) + "</td></tr>");
-  const sp = () => { if (!flat) out.push('<tr class="r spacer"><td colspan="3"></td></tr>'); };
-  const plain = (l, v, cls) => out.push(
-    '<tr class="r' + (cls ? " " + cls : "") + '"><td class="acct"></td><td class="lbl">' + esc(l) + "</td>" +
-    (cls === "res" || cls === "tot" ? resCell(v) : valCell(v)) + "</tr>"
-  );
-  const grp = (l, v, drill, cls) => {
-    const id = "cf" + (++CF_UID);
-    const kids = !!(drill && drill.length) && !summary;
-    out.push(
-      '<tr class="r grp' + (kids && !flat ? "" : " flat") + (cls ? " " + cls : "") + '"' +
-      (kids && !flat ? ' data-g="' + id + '"' : "") + '><td class="acct"></td>' +
-      '<td class="lbl">' + (flat ? "" : '<span class="chev' + (kids ? "" : " none") + '">▸</span>') + esc(l) + "</td>" +
-      valCell(v) + "</tr>"
-    );
-    (summary ? [] : (drill || [])).forEach((d, i) => out.push(
-      '<tr class="r leaf ' + (flat ? "" : "hide g-" + id) + '"' +
-      (flat ? "" : ' style="animation-delay:' + Math.min(i * 18, 220) + 'ms"') + ">" +
-      '<td class="acct">' + esc(d.a) + '</td><td class="lbl">' + esc(cfLeafName(d.a)) + "</td>" +
-      valCell(d.v) + "</tr>"
-    ));
-  };
-
-  sec("Operating activities");
-  plain("Result for the period", cf.earnings);
-  grp("Depreciation and amortisation", cf.depreciation, cf.drills.dep);
-  grp("Unrealised value changes on investments", cf.unrealised, cf.drills.unr);
-  if (!cf.gross) grp("Income from restricted assets (non-cash)", cf.restricted, cf.drills.res);
-  plain("Result adjusted for non-cash items", r2(cf.earnings + cf.NC), "sub");
-  grp("Change in receivables, prepayments and other current assets", r2(-cf.dOpAsset), cf.drills.opA);
-  grp("Change in short-term liabilities and accruals", cf.dOpLiab, cf.drills.opL);
-  plain("Cash flow from operating activities", cf.operating, "res");
-
-  sp();
-  sec("Investing activities");
-  grp("Investments", r2(cf.drills.invOut.reduce((s, o) => s + o.v, 0)), cf.drills.invOut);
-  grp("Divestments", r2(cf.drills.invIn.reduce((s, o) => s + o.v, 0)), cf.drills.invIn);
-  if (!nil(cf.residual)) grp("Non-cash movements posted directly onto asset accounts", cf.residual, cf.drills.resid);
-  plain("Cash flow from investing activities", cf.investing, "res");
-
-  sp();
-  sec("Financing activities");
-  grp("Change in interest-bearing debt and loans", cf.dFin, cf.drills.fin);
-  grp("Capital contributions and withdrawals", cf.capital, cf.drills.cap);
-  plain("Cash flow from financing activities", cf.financing, "res");
-
-  sp();
-  plain("Net change in cash and cash equivalents", cf.net, "tot");
-  plain("Cash at the beginning of the period", cf.cashOpen, "sub");
-  plain("Cash at the end of the period", cf.cashClose, "sub");
-  return out.join("");
-}
 /** investment candidates: the financial-asset accounts of the investing class (S.invKandidaten from the file), else the classic ranges */
 const INV_RANGES = [[1060, 1080], [1400, 1500]];
 const invKandidaten = () => S.invKandidaten ? allAccounts().filter((a) => S.invKandidaten.indexOf(String(a)) >= 0) : allAccounts().filter((a) => inRanges(a, INV_RANGES));
@@ -8682,11 +8397,6 @@ function addMonths(iso, n) {
   d.setUTCMonth(d.getUTCMonth() + n);
   return d.toISOString().slice(0, 10);
 }
-const invSelected = () => {
-  const v = S.invView || "all";
-  const inc = investments().filter((i) => i.include);
-  return v === "all" ? inc : inc.filter((i) => i.id === v);
-};
 const sumAt = (p, accs) => r2(accs.reduce((s, a) => s + accVal(p, a), 0));
 function buildSeries(set, years) {
   const ps = periods().filter((p) => p <= S.activePeriod);
@@ -8730,298 +8440,13 @@ function buildSeries(set, years) {
   return pts;
 }
 
-/* ----------------------------------------------------------------------
-   Chart
-   -------------------------------------------------------------------- */
-let CHART_PTS = [], CHART_GEO = null;
 
-const SCREEN_THEME = {
-  pay: ["#5b8fd8", ".92", "#1f3f7d", ".55"],
-  pos: ["#57d693", ".85", "#57d693", ".35"],
-  neg: ["#ff8d7e", ".55", "#ff8d7e", ".85"],
-  axis: "rgba(115,134,169,.16)", zero: "rgba(115,134,169,.35)",
-  text: "#7386a9", valLine: "#8fc0ff", payLine: "#5b8fd8",
-  hatch: "rgba(232,178,63,.30)", split: "rgba(232,178,63,.55)", splitText: "#e8b23f",
-  dotFill: "#8fc0ff", dotStroke: "#0a1730",
-};
-const SCREEN_THEME_LIGHT = {
-  pay: ["#4A7DB5", ".85", "#A9BDD6", ".55"],
-  pos: ["#2E7D5B", ".7", "#2E7D5B", ".22"],
-  neg: ["#A6262D", ".22", "#A6262D", ".65"],
-  axis: "rgba(133,146,166,.24)", zero: "rgba(133,146,166,.6)",
-  text: "#8592A6", valLine: "#1F3F66", payLine: "#4A7DB5",
-  hatch: "rgba(196,138,22,.32)", split: "rgba(196,138,22,.65)", splitText: "#9A6A08",
-  dotFill: "#1F3F66", dotStroke: "#FFFFFF",
-};
-const screenTheme = () => ({
-  pay: [tk("--ev-pay"), ".9", tk("--ev-pay-2"), ".55"], pos: [tk("--ev-pos"), ".78", tk("--ev-pos"), ".28"], neg: [tk("--ev-neg"), ".3", tk("--ev-neg"), ".78"],
-  axis: tk("--chart-grid"), zero: tk("--ev-zero"), text: tk("--chart-axis"), valLine: tk("--ev-val"), payLine: tk("--ev-pay"),
-  hatch: tk("--ev-hatch"), split: tk("--ev-split"), splitText: tk("--ev-split-text"), dotFill: tk("--ev-val"), dotStroke: tk("--surface-solid")
-});
-const PRINT_THEME = {
-  pay: ["#4A7DB5", ".9", "#A9BDD6", ".6"],
-  pos: ["#2E7D5B", ".75", "#2E7D5B", ".25"],
-  neg: ["#A6262D", ".25", "#A6262D", ".7"],
-  axis: "#DDE4EE", zero: "#8592A6",
-  text: "#48566A", valLine: "#1F3F66", payLine: "#4A7DB5",
-  hatch: "rgba(196,138,22,.32)", split: "rgba(196,138,22,.65)", splitText: "#9A6A08",
-};
 
-/**
- * Build the SVG for a paid-in / value-adjustment area chart.
- * o: { w, h, uid, theme, interactive }
- * Returns { inner, geo } — the caller decides where it lands.
- */
-function chartMarkup(pts, o) {
-  const T = o.theme, uid = o.uid, W = o.w, H = o.h;
-  const ml = 66, mr = 14, mt = 16, mb = 30;
-  const iw = W - ml - mr, ih = H - mt - mb;
-  if (!pts.length) return { inner: "", geo: null };
 
-  const tv = (s) => new Date(s + "T00:00:00").getTime();
-  const t0 = tv(pts[0].t), t1 = tv(pts[pts.length - 1].t) || t0 + 1;
-  const span = Math.max(1, t1 - t0);
-  const xOf = (p) => ml + ((tv(p.t) - t0) / span) * iw;
 
-  let hi = 0, lo = 0;
-  pts.forEach((p) => { hi = Math.max(hi, p.val, p.pay); lo = Math.min(lo, p.val, p.pay); });
-  hi = hi * 1.08 || 1; lo = Math.min(0, lo * 1.08);
-  const yOf = (v) => mt + ih - ((v - lo) / (hi - lo)) * ih;
 
-  const firstFc = pts.findIndex((p) => p.fc);
-  const xSplit = firstFc > 0 ? xOf(pts[firstFc - 1]) : firstFc === 0 ? ml : ml + iw;
 
-  const ticks = [];
-  const stepN = niceStep(hi - lo, 5);
-  for (let v = Math.ceil(lo / stepN) * stepN; v <= hi; v += stepN) ticks.push(v);
 
-  const line = (arr, key) => arr.map((p, i) => (i ? "L" : "M") + xOf(p).toFixed(1) + " " + yOf(p[key]).toFixed(1)).join(" ");
-  const payArea = line(pts, "pay") +
-    " L " + xOf(pts[pts.length - 1]).toFixed(1) + " " + yOf(0).toFixed(1) +
-    " L " + xOf(pts[0]).toFixed(1) + " " + yOf(0).toFixed(1) + " Z";
-
-  const adjPaths = signRuns(pts).map((run) => {
-    const up = run.pts.map((p, i) => (i ? "L" : "M") + xOf(p).toFixed(1) + " " + yOf(p.val).toFixed(1)).join(" ");
-    const back = run.pts.slice().reverse().map((p) => "L" + xOf(p).toFixed(1) + " " + yOf(p.pay).toFixed(1)).join(" ");
-    return { d: up + " " + back + " Z", pos: run.s > 0 };
-  });
-
-  const grad = (id, c) =>
-    '<linearGradient id="' + id + "-" + uid + '" x1="0" y1="0" x2="0" y2="1">' +
-    '<stop offset="0%" stop-color="' + c[0] + '" stop-opacity="' + c[1] + '"/>' +
-    '<stop offset="100%" stop-color="' + c[2] + '" stop-opacity="' + c[3] + '"/></linearGradient>';
-
-  const defs = "<defs>" + grad("gPay", T.pay) + grad("gPos", T.pos) + grad("gNeg", T.neg) +
-    '<pattern id="hatch-' + uid + '" width="7" height="7" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">' +
-    '<line x1="0" y1="0" x2="0" y2="7" stroke="' + T.hatch + '" stroke-width="2.4"/></pattern>' +
-    '<clipPath id="clipH-' + uid + '"><rect x="' + (ml - 1) + '" y="0" width="' + Math.max(0, xSplit - ml + 1) + '" height="' + H + '"/></clipPath>' +
-    '<clipPath id="clipF-' + uid + '"><rect x="' + xSplit + '" y="0" width="' + Math.max(0, ml + iw - xSplit + 1) + '" height="' + H + '"/></clipPath>' +
-    "</defs>";
-
-  const areas = (clip, op) =>
-    '<g clip-path="url(#' + clip + "-" + uid + ')" opacity="' + op + '">' +
-    '<path d="' + payArea + '" fill="url(#gPay-' + uid + ')"/>' +
-    adjPaths.map((p) => '<path d="' + p.d + '" fill="url(#g' + (p.pos ? "Pos" : "Neg") + "-" + uid + ')"/>').join("") + "</g>";
-
-  const grid = ticks.map((v) =>
-    '<line x1="' + ml + '" y1="' + yOf(v).toFixed(1) + '" x2="' + (ml + iw) + '" y2="' + yOf(v).toFixed(1) + '" stroke="' + T.axis + '" stroke-width="1"/>' +
-    '<text x="' + (ml - 10) + '" y="' + (yOf(v) + 3.5).toFixed(1) + '" text-anchor="end" fill="' + T.text + '">' + fmtK(v) + "</text>").join("");
-
-  const xLabels = xTicks(pts).map((p) =>
-    '<text x="' + xOf(p).toFixed(1) + '" y="' + (mt + ih + 19) + '" text-anchor="middle" fill="' + T.text + '">' + esc(p.t.slice(0, 7)) + "</text>").join("");
-
-  const inner =
-    defs + grid + areas("clipH", "1") + areas("clipF", ".55") +
-    '<rect clip-path="url(#clipF-' + uid + ')" x="' + ml + '" y="' + mt + '" width="' + iw + '" height="' + ih + '" fill="url(#hatch-' + uid + ')" pointer-events="none"/>' +
-    '<path fill="none" stroke="' + T.payLine + '" stroke-width="1.4" clip-path="url(#clipH-' + uid + ')" d="' + line(pts, "pay") + '"/>' +
-    '<path fill="none" stroke="' + T.payLine + '" stroke-width="1.4" clip-path="url(#clipF-' + uid + ')" stroke-dasharray="4 4" d="' + line(pts, "pay") + '"/>' +
-    '<path fill="none" stroke="' + T.valLine + '" stroke-width="2" stroke-linejoin="round" clip-path="url(#clipH-' + uid + ')" d="' + line(pts, "val") + '"/>' +
-    '<path fill="none" stroke="' + T.valLine + '" stroke-width="2" stroke-linejoin="round" clip-path="url(#clipF-' + uid + ')" stroke-dasharray="5 4" opacity=".8" d="' + line(pts, "val") + '"/>' +
-    (lo < 0 ? '<line x1="' + ml + '" y1="' + yOf(0).toFixed(1) + '" x2="' + (ml + iw) + '" y2="' + yOf(0).toFixed(1) + '" stroke="' + T.zero + '"/>' : "") +
-    (firstFc > 0
-      ? '<line x1="' + xSplit.toFixed(1) + '" y1="' + mt + '" x2="' + xSplit.toFixed(1) + '" y2="' + (mt + ih) + '" stroke="' + T.split + '" stroke-width="1.2" stroke-dasharray="5 4"/>' +
-        '<text x="' + (xSplit + 7).toFixed(1) + '" y="' + (mt + 11) + '" fill="' + T.splitText + '">forecast</text>' : "") +
-    xLabels +
-    '<line x1="' + ml + '" y1="' + (mt + ih) + '" x2="' + (ml + iw) + '" y2="' + (mt + ih) + '" stroke="' + T.axis + '" stroke-width="1"/>' +
-    (o.interactive
-      ? '<line class="cursor" id="cur" x1="0" y1="' + mt + '" x2="0" y2="' + (mt + ih) + '" opacity="0"/>' +
-        '<circle id="curDot" r="4.5" fill="' + (T.dotFill || "#8FE3FF") + '" stroke="' + (T.dotStroke || "#03091A") + '" stroke-width="2" opacity="0"/>' +
-        '<rect id="hit" x="' + ml + '" y="' + mt + '" width="' + iw + '" height="' + ih + '" fill="transparent"/>'
-      : "");
-
-  return { inner, geo: { ml, mt, iw, ih, xOf, yOf, W, H } };
-}
-
-function drawChart(pts) {
-  const svg = $("#invChart");
-  const W = Math.max(360, $("#chartWrap").clientWidth || 900), H = 340;
-  svg.setAttribute("viewBox", "0 0 " + W + " " + H);
-  svg.setAttribute("width", W); svg.setAttribute("height", H);
-  const out = chartMarkup(pts, { w: W, h: H, uid: "s", theme: screenTheme(), interactive: true });
-  svg.innerHTML = out.inner;
-  CHART_PTS = pts; CHART_GEO = out.geo;
-  if (out.geo) wireHover();
-}
-
-function niceStep(range, n) {
-  const raw = range / Math.max(1, n);
-  const mag = Math.pow(10, Math.floor(Math.log10(Math.max(1, raw))));
-  const norm = raw / mag;
-  const m = norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10;
-  return m * mag;
-}
-function xTicks(pts) {
-  const n = Math.min(7, pts.length);
-  if (n <= 1) return pts.slice(0, 1);
-  const out = [];
-  for (let i = 0; i < n; i++) out.push(pts[Math.round((i * (pts.length - 1)) / (n - 1))]);
-  return out;
-}
-function signRuns(pts) {
-  const runs = []; let cur = null;
-  const gap = (q) => q.val - q.pay;
-  for (let i = 0; i < pts.length; i++) {
-    const s = gap(pts[i]) >= 0 ? 1 : -1;
-    if (!cur) { cur = { s, pts: [] }; }
-    else if (cur.s !== s) {
-      const a = pts[i - 1], b = pts[i], da = gap(a), db = gap(b);
-      const t = Math.abs(da - db) < 1e-9 ? 0.5 : da / (da - db);
-      const mid = {
-        t: a.t, fc: b.fc,
-        x: 0,
-        pay: a.pay + (b.pay - a.pay) * t,
-        val: a.pay + (b.pay - a.pay) * t,
-      };
-      mid.t = isoLerp(a.t, b.t, t);
-      cur.pts.push(mid); runs.push(cur);
-      cur = { s, pts: [mid] };
-    }
-    cur.pts.push(pts[i]);
-  }
-  if (cur && cur.pts.length > 1) runs.push(cur);
-  return runs;
-}
-function isoLerp(a, b, t) {
-  const A = new Date(a + "T00:00:00Z").getTime(), B = new Date(b + "T00:00:00Z").getTime();
-  return new Date(A + (B - A) * t).toISOString().slice(0, 10);
-}
-
-function wireHover() {
-  const hit = $("#hit"), svg = $("#invChart"), tip = $("#invTip");
-  if (!hit) return;
-  const move = (ev) => {
-    const r = svg.getBoundingClientRect();
-    const sx = ((ev.clientX - r.left) / r.width) * CHART_GEO.W;
-    let best = 0, bd = 1e12;
-    CHART_PTS.forEach((p, i) => { const d = Math.abs(CHART_GEO.xOf(p) - sx); if (d < bd) { bd = d; best = i; } });
-    const p = CHART_PTS[best], x = CHART_GEO.xOf(p), y = CHART_GEO.yOf(p.val);
-    const cur = $("#cur"), dot = $("#curDot");
-    cur.setAttribute("x1", x); cur.setAttribute("x2", x); cur.setAttribute("opacity", "1");
-    dot.setAttribute("cx", x); dot.setAttribute("cy", y); dot.setAttribute("opacity", "1");
-    const adj = r2(p.val - p.pay);
-    const pct = p.pay ? (adj / p.pay) * 100 : 0;
-    tip.innerHTML =
-      '<div class="t">' + esc(p.t) + (p.fc ? " · forecast" : "") + "</div>" +
-      '<div class="row"><span>Paid in</span><b>' + fmt(p.pay) + "</b></div>" +
-      '<div class="row"><span>Value adjustment</span><b class="' + (adj >= 0 ? "pos" : "neg") + '">' + (adj >= 0 ? "+" : "−") + fmt(Math.abs(adj)) + "</b></div>" +
-      '<div class="row" style="border-top:1px solid var(--hairline);margin-top:5px;padding-top:5px"><span>Value</span><b>' + fmt(p.val) + "</b></div>" +
-      '<div class="row"><span>Return</span><b class="' + (adj >= 0 ? "pos" : "neg") + '">' + (adj >= 0 ? "+" : "−") + Math.abs(pct).toFixed(1) + "%</b></div>";
-    tip.classList.add("on");
-    const wrap = $("#chartWrap").getBoundingClientRect();
-    const px = (x / CHART_GEO.W) * r.width;
-    const tw = tip.offsetWidth || 190;
-    tip.style.left = Math.min(Math.max(6, px - tw / 2), wrap.width - tw - 6) + "px";
-    tip.style.top = Math.max(4, (y / CHART_GEO.H) * r.height - tip.offsetHeight - 14) + "px";
-  };
-  hit.addEventListener("mousemove", move);
-  hit.addEventListener("touchmove", (e) => { if (e.touches[0]) move(e.touches[0]); }, { passive: true });
-  const leave = () => {
-    tip.classList.remove("on");
-    const c = $("#cur"), d = $("#curDot");
-    if (c) c.setAttribute("opacity", "0");
-    if (d) d.setAttribute("opacity", "0");
-  };
-  hit.addEventListener("mouseleave", leave);
-  hit.addEventListener("touchend", leave);
-}
-
-function renderInv() {
-  const all = investments();
-  const p = S.activePeriod;
-  const years = S.forecast.years;
-
-  const sel = $("#selInv");
-  const keep = S.invView || "all";
-  sel.innerHTML = '<option value="all">All investments combined</option>' +
-    all.filter((i) => i.include).map((i) => '<option value="' + esc(i.id) + '">' + esc(i.label) + "</option>").join("");
-  sel.value = keep; S.invView = sel.value || "all";
-
-  const set = invSelected();
-  const pay = r2(set.reduce((s, i) => s + sumAt(p, i.pay), 0));
-  const adj = r2(set.reduce((s, i) => s + sumAt(p, i.adj), 0));
-  const val = r2(pay + adj);
-
-  const pts = buildSeries(set, years);
-  const end = pts[pts.length - 1] || { pay: pay, val: val };
-  const endT = pts.length ? pts[pts.length - 1].t : rep(p).asOf;
-
-  $("#invMeta").textContent = "as at " + rep(p).asOf + " · " + CUR() + " · rent deposits excluded";
-  $("#invHorizonChip").textContent = years === 0 ? "actuals only" : years + " year horizon → " + endT.slice(0, 4);
-  $("#yrsLbl").innerHTML = years + ' <small>year' + (years === 1 ? "" : "s") + "</small>";
-  $("#yrsTo").textContent = years ? "projected to " + endT : "";
-  const rng = $("#yrsRange");
-  rng.value = years;
-  rng.style.setProperty("--fill", (years / 30) * 100 + "%");
-
-  kpi($("#invKpis"), [
-    { k: "Paid in", v: fmt(pay), d: set.length + " position" + (set.length === 1 ? "" : "s") },
-    { k: "Value adjustment", v: (adj >= 0 ? "+" : "−") + fmt(Math.abs(adj)), vc: adj >= 0 ? "pos" : "neg", d: pay ? ((adj / pay) * 100).toFixed(1) + "% on contributions" : "", tone: adj >= 0 ? "pos" : "neg" },
-    { k: "Market value", v: fmt(val), d: "at " + rep(p).asOf },
-    { k: "Projected value", v: fmt(end.val), vc: "pos", d: years ? "paid in " + fmtK(end.pay) + " · growth " + fmtK(end.val - end.pay) : "no forecast", tone: "pos" },
-  ]);
-
-  drawChart(pts);
-  renderInvTable();
-}
-
-function renderInvTable() {
-  const p = S.activePeriod;
-  const rows = investments().map((i, n) => ({ i, n })).filter((x) => x.i.include).map(({ i, n }) => {
-    const pay = sumAt(p, i.pay), adj = sumAt(p, i.adj), val = r2(pay + adj);
-    const ret = pay ? (adj / pay) * 100 : 0;
-    const one = buildSeries([i], S.forecast.years);
-    const proj = one.length ? one[one.length - 1].val : val;
-    return (
-      "<tr>" +
-      "<td>" + esc(i.label) +
-      '<div style="font-family:var(--num);font-size:10.5px;color:var(--ink-4);margin-top:2px">' +
-      esc(i.pay.join(", ")) + (i.adj.length ? " ↔ " + esc(i.adj.join(", ")) : ' <span style="color:var(--ev-warn)">no split account</span>') + "</div></td>" +
-      '<td class="num">' + fmt(pay) + "</td>" +
-      '<td class="num ' + (adj >= 0 ? "pos" : "neg") + '">' + (nil(adj) ? "–" : (adj > 0 ? "+" : "−") + fmt(Math.abs(adj))) + "</td>" +
-      '<td class="num">' + fmt(val) + "</td>" +
-      '<td class="num ' + (ret >= 0 ? "pos" : "neg") + '">' + (nil(adj) ? "–" : (ret >= 0 ? "+" : "−") + Math.abs(ret).toFixed(1) + "%") + "</td>" +
-      '<td class="num"><input class="cell" type="number" step="10" min="0" data-inv="' + n + '" data-f="monthly" value="' + (+i.monthly || 0) + '"></td>' +
-      '<td class="num"><input class="cell" style="width:74px" type="number" step="0.25" data-inv="' + n + '" data-f="ret" value="' + (+i.ret || 0) + '"></td>' +
-      '<td class="num" style="color:var(--ink-2)">' + fmt(proj) + "</td>" +
-      "</tr>"
-    );
-  }).join("");
-
-  $("#invTable").innerHTML =
-    "<thead><tr><th>Investment</th><th class='num'>Paid in</th><th class='num'>Value adj.</th>" +
-    "<th class='num'>Value</th><th class='num'>Return</th><th class='num'>Monthly pay-in</th>" +
-    "<th class='num'>Return p.a.</th><th class='num'>Projected</th></tr></thead><tbody>" +
-    (rows || '<tr><td colspan="8" class="empty">No investment ticked yet. Tick them under Setup, Statement settings.</td></tr>') + "</tbody>";
-
-  $$("#invTable [data-inv]").forEach((el) => {
-    el.addEventListener("change", () => {
-      const inv = investments()[+el.getAttribute("data-inv")];
-      const f = el.getAttribute("data-f");
-      inv[f] = el.type === "checkbox" ? el.checked : parseFloat(el.value) || 0;
-      S.touch(true);
-    });
-  });
-}
 function yearSeries() {
   const byYear = {};
   for (const p of periods()) {
@@ -9047,548 +8472,26 @@ function worthSeries() {
   }));
 }
 
-/* ----------------------------------------------------------------------
-   Shared hover plumbing for the two overview charts
-   -------------------------------------------------------------------- */
-function attachTip(svg, wrap, tip, xs, geo, html) {
-  const move = (ev) => {
-    const r = svg.getBoundingClientRect();
-    const sx = ((ev.clientX - r.left) / r.width) * geo.W;
-    let best = 0, bd = 1e12;
-    xs.forEach((x, i) => { const d = Math.abs(x - sx); if (d < bd) { bd = d; best = i; } });
-    const cur = $(".ovcur", svg), dot = $(".ovdot", svg);
-    if (cur) { cur.setAttribute("x1", xs[best]); cur.setAttribute("x2", xs[best]); cur.setAttribute("opacity", "1"); }
-    if (dot) { dot.setAttribute("cx", xs[best]); dot.setAttribute("cy", geo.dotY(best)); dot.setAttribute("opacity", "1"); }
-    tip.innerHTML = html(best);
-    tip.classList.add("on");
-    const wr = wrap.getBoundingClientRect();
-    const px = (xs[best] / geo.W) * r.width;
-    const tw = tip.offsetWidth || 200;
-    tip.style.left = Math.min(Math.max(6, px - tw / 2), Math.max(6, wr.width - tw - 6)) + "px";
-    tip.style.top = "6px";
-  };
-  const hit = $(".ovhit", svg);
-  if (!hit) return;
-  hit.addEventListener("mousemove", move);
-  hit.addEventListener("touchmove", (e) => { if (e.touches[0]) move(e.touches[0]); }, { passive: true });
-  const leave = () => {
-    tip.classList.remove("on");
-    const c = $(".ovcur", svg), d = $(".ovdot", svg);
-    if (c) c.setAttribute("opacity", "0");
-    if (d) d.setAttribute("opacity", "0");
-  };
-  hit.addEventListener("mouseleave", leave);
-  hit.addEventListener("touchend", leave);
-}
 
-/* palette for the two overview charts, per theme */
-function OVT() {
-  return {
-    grid: tk("--chart-grid"), zero: tk("--ev-zero"),
-    inc: [tk("--ev-inc"), tk("--ev-inc-2")], exp: [tk("--ev-exp"), tk("--ev-exp-2")],
-    hatch: tk("--ev-hatch"), res: tk("--ev-res"), resDotStroke: tk("--surface-solid"),
-    lbl: tk("--chart-axis"), lblPart: tk("--ev-split-text"), cursor: tk("--ev-cursor"),
-    worth: tk("--ev-worth"), assets: tk("--ev-assets"),
-    worthDotFill: tk("--surface-solid"), worthDotStroke: tk("--ev-worth"),
-    ovDotFill: tk("--ev-worth"), ovDotStroke: tk("--surface-solid"),
-  };
-}
 
-const tipRow = (l, v, cls) =>
-  '<div class="row"><span>' + esc(l) + '</span><b' + (cls ? ' class="' + cls + '"' : "") + ">" + v + "</b></div>";
 
-/* ----------------------------------------------------------------------
-   Income / expenses / result
-   -------------------------------------------------------------------- */
-function drawOvBars() {
-  const T = OVT();
-  const svg = $("#ovBars"), wrap = $("#ovBarWrap");
-  const data = yearSeries();
-  const W = Math.max(340, wrap.clientWidth || 900), H = 300;
-  const ml = 66, mr = 14, mt = 18, mb = 34;
-  const iw = W - ml - mr, ih = H - mt - mb;
-  svg.setAttribute("viewBox", "0 0 " + W + " " + H);
-  if (!data.length) { svg.innerHTML = ""; return; }
 
-  let hi = 0, lo = 0;
-  data.forEach((d) => { hi = Math.max(hi, d.income, d.expense, d.result); lo = Math.min(lo, d.result, 0); });
-  hi = hi * 1.12 || 1; lo = Math.min(0, lo * 1.12);
-  const yOf = (v) => mt + ih - ((v - lo) / (hi - lo)) * ih;
-  const band = iw / data.length;
-  const bw = Math.min(46, band * 0.3);
-  const cx = (i) => ml + band * (i + 0.5);
 
-  const step = niceStep(hi - lo, 5);
-  const grid = [];
-  for (let v = Math.ceil(lo / step) * step; v <= hi; v += step)
-    grid.push('<line x1="' + ml + '" y1="' + yOf(v).toFixed(1) + '" x2="' + (ml + iw) + '" y2="' + yOf(v).toFixed(1) +
-      '" stroke="' + T.grid + '"/><text x="' + (ml - 10) + '" y="' + (yOf(v) + 3.5).toFixed(1) + '" text-anchor="end">' + fmtK(v) + "</text>");
 
-  const bar = (x, v0, v1, fill, part, rx) => {
-    const y = Math.min(yOf(v0), yOf(v1)), h = Math.abs(yOf(v1) - yOf(v0));
-    return '<rect class="bar" x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + bw.toFixed(1) +
-      '" height="' + Math.max(1, h).toFixed(1) + '" rx="' + rx + '" fill="' + fill + '"/>' +
-      (part ? '<rect x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + bw.toFixed(1) +
-        '" height="' + Math.max(1, h).toFixed(1) + '" rx="' + rx + '" fill="url(#ovHatch)"/>' : "");
-  };
-
-  const bars = data.map((d, i) => {
-    const x0 = cx(i) - bw - 3, x1 = cx(i) + 3;
-    return '<g class="band">' +
-      bar(x0, 0, d.income, "url(#ovInc)", d.part, 5) +
-      bar(x1, 0, d.expense, "url(#ovExp)", d.part, 5) + "</g>";
-  }).join("");
-
-  const line = data.map((d, i) => (i ? "L" : "M") + cx(i).toFixed(1) + " " + yOf(d.result).toFixed(1)).join(" ");
-  const dots = data.map((d, i) =>
-    '<circle cx="' + cx(i).toFixed(1) + '" cy="' + yOf(d.result).toFixed(1) + '" r="4.5" fill="' + T.res + '" stroke="' + T.resDotStroke + '" stroke-width="2"/>').join("");
-  const labels = data.map((d, i) =>
-    '<text x="' + cx(i).toFixed(1) + '" y="' + (mt + ih + 21) + '" text-anchor="middle" fill="' + (d.part ? T.lblPart : T.lbl) + '">' +
-    esc(d.y) + (d.part ? " ·" + d.months + "m" : "") + "</text>").join("");
-
-  svg.innerHTML =
-    '<defs><linearGradient id="ovInc" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="' + T.inc[0] + '"/><stop offset="100%" stop-color="' + T.inc[1] + '"/></linearGradient>' +
-    '<linearGradient id="ovExp" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="' + T.exp[0] + '"/><stop offset="100%" stop-color="' + T.exp[1] + '"/></linearGradient>' +
-    '<pattern id="ovHatch" width="6" height="6" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">' +
-    '<line x1="0" y1="0" x2="0" y2="6" stroke="' + T.hatch + '" stroke-width="2"/></pattern></defs>' +
-    grid.join("") + bars +
-    '<line x1="' + ml + '" y1="' + yOf(0).toFixed(1) + '" x2="' + (ml + iw) + '" y2="' + yOf(0).toFixed(1) + '" stroke="' + T.zero + '"/>' +
-    '<path d="' + line + '" fill="none" stroke="' + T.res + '" stroke-width="2.2" stroke-linejoin="round"/>' + dots + labels +
-    '<line class="ovcur" x1="0" y1="' + mt + '" x2="0" y2="' + (mt + ih) + '" stroke="' + T.cursor + '" stroke-dasharray="3 3" opacity="0"/>' +
-    '<rect class="ovhit" x="' + ml + '" y="' + mt + '" width="' + iw + '" height="' + ih + '" fill="transparent"/>';
-
-  attachTip(svg, wrap, $("#ovBarTip"), data.map((d, i) => cx(i)), { W, dotY: () => 0 }, (i) => {
-    const d = data[i];
-    return '<div class="t">' + esc(d.label) + (d.part ? " · " + d.months + " months" : "") + "</div>" +
-      tipRow("Income", fmt(d.income)) +
-      tipRow("Expenses", "\u2212" + fmt(d.expense), "neg") +
-      '<div class="row" style="border-top:1px solid var(--hairline);margin-top:5px;padding-top:5px"><span>Result</span><b class="' +
-      (d.result >= 0 ? "pos" : "neg") + '">' + fmt(d.result) + "</b></div>" +
-      tipRow("Savings rate", (d.income ? (d.result / d.income) * 100 : 0).toFixed(1) + "%");
-  });
-}
-
-/* ----------------------------------------------------------------------
-   Net worth
-   -------------------------------------------------------------------- */
-function drawOvLine() {
-  const T = OVT();
-  const svg = $("#ovLine"), wrap = $("#ovLineWrap");
-  const data = worthSeries();
-  const W = Math.max(340, wrap.clientWidth || 900), H = 300;
-  const ml = 66, mr = 14, mt = 18, mb = 32;
-  const iw = W - ml - mr, ih = H - mt - mb;
-  svg.setAttribute("viewBox", "0 0 " + W + " " + H);
-  if (!data.length) { svg.innerHTML = ""; return; }
-
-  const tv = (s) => new Date(s + "T00:00:00").getTime();
-  const t0 = tv(data[0].t), t1 = tv(data[data.length - 1].t);
-  const span = Math.max(1, t1 - t0);
-  const xOf = (i) => data.length === 1 ? ml + iw / 2 : ml + ((tv(data[i].t) - t0) / span) * iw;
-
-  let hi = 0, lo = 0;
-  data.forEach((d) => { hi = Math.max(hi, d.assets, d.worth); lo = Math.min(lo, d.worth); });
-  hi = hi * 1.1 || 1; lo = Math.min(0, lo * 1.1);
-  const yOf = (v) => mt + ih - ((v - lo) / (hi - lo)) * ih;
-
-  const step = niceStep(hi - lo, 5);
-  const grid = [];
-  for (let v = Math.ceil(lo / step) * step; v <= hi; v += step)
-    grid.push('<line x1="' + ml + '" y1="' + yOf(v).toFixed(1) + '" x2="' + (ml + iw) + '" y2="' + yOf(v).toFixed(1) +
-      '" stroke="' + T.grid + '"/><text x="' + (ml - 10) + '" y="' + (yOf(v) + 3.5).toFixed(1) + '" text-anchor="end">' + fmtK(v) + "</text>");
-
-  const path = (key) => data.map((d, i) => (i ? "L" : "M") + xOf(i).toFixed(1) + " " + yOf(d[key]).toFixed(1)).join(" ");
-  const area = path("worth") + " L " + xOf(data.length - 1).toFixed(1) + " " + yOf(Math.max(0, lo)).toFixed(1) +
-    " L " + xOf(0).toFixed(1) + " " + yOf(Math.max(0, lo)).toFixed(1) + " Z";
-
-  const nTicks = Math.min(6, data.length);
-  const labels = [];
-  for (let k = 0; k < nTicks; k++) {
-    const i = Math.round((k * (data.length - 1)) / Math.max(1, nTicks - 1));
-    labels.push('<text x="' + xOf(i).toFixed(1) + '" y="' + (mt + ih + 20) + '" text-anchor="middle">' + esc(data[i].t.slice(0, 7)) + "</text>");
-  }
-
-  svg.innerHTML =
-    '<defs><linearGradient id="ovWorth" x1="0" y1="0" x2="0" y2="1">' +
-    '<stop offset="0%" stop-color="' + T.worth + '" stop-opacity=".45"/><stop offset="100%" stop-color="' + T.worth + '" stop-opacity=".03"/></linearGradient></defs>' +
-    grid.join("") +
-    '<path d="' + area + '" fill="url(#ovWorth)"/>' +
-    '<path d="' + path("assets") + '" fill="none" stroke="' + T.assets + '" stroke-width="1.3" stroke-dasharray="4 4"/>' +
-    '<path d="' + path("worth") + '" fill="none" stroke="' + T.worth + '" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>' +
-    data.map((d, i) => (data.length > 40 && i < data.length - 1) ? "" : '<circle cx="' + xOf(i).toFixed(1) + '" cy="' + yOf(d.worth).toFixed(1) + '" r="3.4" fill="' + T.worthDotFill + '" stroke="' + T.worthDotStroke + '" stroke-width="2"/>').join("") +
-    labels.join("") +
-    '<line class="ovcur" x1="0" y1="' + mt + '" x2="0" y2="' + (mt + ih) + '" stroke="' + T.cursor + '" stroke-dasharray="3 3" opacity="0"/>' +
-    '<circle class="ovdot" r="5" fill="' + T.ovDotFill + '" stroke="' + T.ovDotStroke + '" stroke-width="2" opacity="0"/>' +
-    '<rect class="ovhit" x="' + ml + '" y="' + mt + '" width="' + iw + '" height="' + ih + '" fill="transparent"/>';
-
-  attachTip(svg, wrap, $("#ovLineTip"), data.map((d, i) => xOf(i)), { W, dotY: (i) => yOf(data[i].worth) }, (i) => {
-    const d = data[i], prev = i > 0 ? data[i - 1] : null;
-    const ch = prev ? r2(d.worth - prev.worth) : 0;
-    return '<div class="t">' + esc(d.t) + " · " + esc(d.label) + "</div>" +
-      tipRow("Total assets", fmt(d.assets)) +
-      tipRow("Total liabilities", "\u2212" + fmt(d.liab), "neg") +
-      '<div class="row" style="border-top:1px solid var(--hairline);margin-top:5px;padding-top:5px"><span>Net worth</span><b>' + fmt(d.worth) + "</b></div>" +
-      (prev ? tipRow("Since " + prev.label, (ch >= 0 ? "+" : "\u2212") + fmt(Math.abs(ch)), ch >= 0 ? "pos" : "neg") : "");
-  });
-}
-
-/* ----------------------------------------------------------------------
-   Page
-   -------------------------------------------------------------------- */
-function ovCard(n, page, title, sub, items, foot) {
-  return '<button class="ovcard" data-go="' + page + '">' +
-    '<div class="ovh"><span class="n">' + n + "</span><h3>" + esc(title) + '</h3><span class="go">→</span></div>' +
-    '<div class="ovsub">' + esc(sub) + "</div>" +
-    '<div class="ovk">' + items.map((i) =>
-      '<div><span class="k">' + esc(i.k) + '</span><span class="v ' + (i.vc || "") + '">' + i.v + "</span></div>").join("") +
-    '</div><div class="foot">' + foot + "</div></button>";
-}
-
-function renderOverview() {
-  const p = S.activePeriod, c = S.comparePeriod;
-  const R = rep(p), m = monthsOf(p);
-  $("#ovMeta").textContent = periodLabel(p) + " · as at " + R.asOf + " · " + CUR() +
-    " · compared with " + periodLabel(c);
-
-  const ta = nodeVal(GROUPS.TA, p), tl = nodeVal(GROUPS.TL, p), eq = nodeVal(GROUPS.EQ, p);
-  const cash = nodeVal(GROUPS.FONDS, p);
-  const ti = nodeVal(GROUPS.TI, p), np = nodeVal(GROUPS.NP, p);
-  const cards = [
-    ovCard("02", "bs", "Balance sheet", "as at " + R.asOf, [
-      { k: "Total assets", v: fmt(ta) },
-      { k: "Total liabilities", v: fmt(tl) },
-      { k: "Equity — net worth", v: fmt(eq), vc: eq >= 0 ? "pos" : "neg" },
-      { k: "Cash, equiv. and invest.", v: fmt(cash + investedAt(p)) },
-    ], (() => {
-      const d = r2(ta - nodeVal(GROUPS.TLE, p));
-      return nil(d) ? '<span class="chip ok">balanced</span> assets equal liabilities and equity'
-                    : '<span class="chip bad">out by ' + fmt(d) + "</span>";
-    })()),
-    ovCard("03", "is", "Income statement", (R.basis === "YTD" ? m + " months to " : "full year to ") + R.asOf, [
-      { k: "Total income", v: fmt(ti) },
-      { k: "Total expenses", v: fmt(-r2(ti - np)), vc: "neg" },
-      { k: "EBITDA", v: GROUPS.EBITDA ? fmt(nodeVal(GROUPS.EBITDA, p)) : "\u2013" },
-      { k: "Result", v: fmt(np), vc: np >= 0 ? "pos" : "neg" },
-    ], '<span class="chip">savings rate ' + (ti ? (np / ti) * 100 : 0).toFixed(1) + "%</span> full-year run rate " + fmt(m ? np * (12 / m) : np)),
-  ];
-
-  if (p !== c) {
-    const cf = S.cfDirekt ? Object.assign({}, S.cfDirekt(p, c), { net: undefined }) : buildCF(p, c);   /* app hook: direct cash flow */
-    if (S.cfDirekt) cf.net = cf.change;
-    cards.push(ovCard("04", "cf", "Cash flow", rep(c).asOf + " → " + R.asOf, [
-      { k: "Operating", v: fmt(cf.operating), vc: cf.operating >= 0 ? "pos" : "neg" },
-      { k: "Investing", v: fmt(cf.investing), vc: cf.investing >= 0 ? "pos" : "neg" },
-      { k: "Financing", v: fmt(cf.financing), vc: cf.financing >= 0 ? "pos" : "neg" },
-      { k: "Net change in cash", v: fmt(cf.net), vc: cf.net >= 0 ? "pos" : "neg" },
-    ], nil(cf.check)
-      ? '<span class="chip ok">reconciles</span> ' + fmt(cf.cashOpen) + " → " + fmt(cf.cashClose)
-      : '<span class="chip bad">out by ' + fmt(cf.check) + "</span>"));
-  } else {
-    cards.push(ovCard("04", "cf", "Cash flow", "needs two different reports", [
-      { k: "Operating", v: "–" }, { k: "Investing", v: "–" },
-      { k: "Financing", v: "–" }, { k: "Net change in cash", v: "–" },
-    ], '<span class="chip warn">pick a comparison period</span>'));
-  }
-
-  $("#ovCards").innerHTML = cards.join("");
-  $$("#ovCards [data-go]").forEach((b) => b.onclick = () => S.go(b.getAttribute("data-go")));
-
-  const ws = worthSeries();
-  if (ws.length > 1) {
-    const first = ws[0], last = ws[ws.length - 1];
-    const g = r2(last.worth - first.worth);
-    $("#ovWorthChip").textContent = (g >= 0 ? "+" : "\u2212") + fmt(Math.abs(g)) + " since " + first.t;
-  } else $("#ovWorthChip").textContent = "one report so far";
-
-  drawOvBars();
-  drawOvLine();
-}
-const MM = 96 / 25.4;
-const PAGE_W = 189 * MM;   // A4 width  less margins, minus a hair of slack
-const PAGE_H = 276 * MM;   // A4 height less margins, minus a hair of slack
 const FORECAST_YEARS = [3, 10, 30];
 
-/* today on this device's calendar, not the UTC one (which still says yesterday in the first hours of a day) */
-const today = () => { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); };
 
-function pHead(title, right) {
-  return '<div class="phd"><div><h1>' + esc(title) + "</h1>" +
-    '<div class="who">' + esc(S.title || "") + " · personal financial statements</div></div>" +
-    '<div class="rt">' + right + "</div></div>";
-}
-function pFoot(left) {
-  return '<div class="pft"><span>' + left + '</span><span class="r">Prepared ' + today() + " · " + esc(S.currency || "CHF") + "</span></div>";
-}
-function pKpis(items) {
-  return '<div class="pkpis">' + items.map((i) =>
-    '<div class="pk"><div class="k">' + esc(i.k) + '</div><div class="v ' + (i.vc || "") + '">' + i.v +
-    '</div><div class="d">' + (i.d || "") + "</div></div>").join("") + "</div>";
-}
-function pPage(inner) { return '<div class="pg"><div class="pgin">' + inner + "</div></div>"; }
 
-/* ---------------------------------------------------------------------- */
-function pageOverview(p, c) {
-  const R = rep(p), m = monthsOf(p);
-  const ta = nodeVal(GROUPS.TA, p), tl = nodeVal(GROUPS.TL, p), eq = nodeVal(GROUPS.EQ, p);
-  const ti = nodeVal(GROUPS.TI, p), np = nodeVal(GROUPS.NP, p);
-  const cf = p === c ? null : buildCF(p, c);
 
-  const block = (title, rows) =>
-    '<tr class="sec"><td colspan="5">' + esc(title) + "</td></tr>" +
-    rows.map((r) => '<tr' + (r.b ? ' class="sub"' : "") + '><td class="lbl">' + esc(r.k) +
-      '</td><td class="num">' + r.v + '</td><td class="num dim">' + (r.c || "") +
-      '</td><td class="num chg">' + (r.d || "") + '</td><td class="num pct chg">' + (r.n || "") + "</td></tr>").join("");
 
-  const cmp = (a, b) => {
-    const d = r2(a - b);
-    return { d: nil(d) ? "–" : '<span class="' + (d >= 0 ? "pos" : "neg") + '">' + (d > 0 ? "+" : "\u2212") + NF2.format(Math.abs(d)) + "</span>", n: fmtPct(a, b) };
-  };
-  const row = (k, a, b, bold) => { const x = cmp(a, b); return { k, v: fmt(a), c: fmt(b), d: x.d, n: x.n, b: bold }; };
 
-  const ys = yearSeries();
-  const yearsTable =
-    '<table class="pt c5" style="margin-top:9px"><thead><tr><th>Financial year</th><th class="num">Income</th>' +
-    '<th class="num">Expenses</th><th class="num">Result</th><th class="num">Savings rate</th></tr></thead><tbody>' +
-    ys.map((d) => '<tr><td class="lbl">' + esc(d.y) + (d.part ? " · " + d.months + " months" : "") +
-      '</td><td class="num">' + fmt(d.income) + '</td><td class="num neg">\u2212' + fmt(d.expense) +
-      '</td><td class="num ' + (d.result >= 0 ? "pos" : "neg") + '">' + fmt(d.result) +
-      '</td><td class="num">' + (d.income ? (d.result / d.income) * 100 : 0).toFixed(1) + "%</td></tr>").join("") +
-    "</tbody></table>";
 
-  const ws = worthSeries();
-  const worthTable =
-    '<table class="pt c5" style="margin-top:9px"><thead><tr><th>Report</th><th class="num">Total assets</th>' +
-    '<th class="num">Total liabilities</th><th class="num">Net worth</th><th class="num">Change</th></tr></thead><tbody>' +
-    ws.map((d, i) => {
-      const ch = i ? r2(d.worth - ws[i - 1].worth) : null;
-      return '<tr><td class="lbl">' + esc(d.t) + " · " + esc(d.label) + '</td><td class="num">' + fmt(d.assets) +
-        '</td><td class="num">' + fmt(d.liab) + '</td><td class="num">' + fmt(d.worth) +
-        '</td><td class="num ' + (ch === null ? "dim" : ch >= 0 ? "pos" : "neg") + '">' +
-        (ch === null ? "–" : (ch >= 0 ? "+" : "\u2212") + NF2.format(Math.abs(ch))) + "</td></tr>";
-    }).join("") + "</tbody></table>";
 
-  return pPage(
-    pHead("Overview", "<b>" + esc(periodLabel(p)) + "</b><br>as at " + esc(R.asOf) + " · compared with " + esc(periodLabel(c))) +
-    pKpis([
-      { k: "Total assets", v: fmt(ta) },
-      { k: "Equity — net worth", v: fmt(eq), vc: eq >= 0 ? "pos" : "neg" },
-      { k: "Result for the period", v: fmt(np), vc: np >= 0 ? "pos" : "neg" },
-      { k: "Net change in cash", v: cf ? fmt(cf.net) : "–", vc: cf && cf.net >= 0 ? "pos" : "neg" },
-    ]) +
-    '<table class="pt c5"><thead><tr><th>Key figures</th><th class="num">' + esc(periodLabel(p)) +
-    '</th><th class="num">' + esc(periodLabel(c)) + '</th><th class="num chg">Change</th><th class="num chg">%</th></tr></thead><tbody>' +
-    block("Balance sheet", [
-      row("Total assets", ta, nodeVal(GROUPS.TA, c), true),
-      row("Total current assets", nodeVal(GROUPS.CA, p), nodeVal(GROUPS.CA, c)),
-      row("Total non-current assets", nodeVal(GROUPS.NCA, p), nodeVal(GROUPS.NCA, c)),
-      row("Total liabilities", tl, nodeVal(GROUPS.TL, c), true),
-      row("Equity — net worth", eq, nodeVal(GROUPS.EQ, c), true),
-      row("Cash, equivalents and investments", nodeVal(GROUPS.FONDS, p) + investedAt(p), nodeVal(GROUPS.FONDS, c) + investedAt(c)),
-    ]) +
-    block("Income statement (" + m + " month" + (m === 1 ? "" : "s") + ")", [
-      row("Total income", ti, nodeVal(GROUPS.TI, c), true),
-      row("Gross result", nodeVal(GROUPS.GR, p), nodeVal(GROUPS.GR, c)),
-      row("EBITDA", nodeVal(GROUPS.EBITDA, p), nodeVal(GROUPS.EBITDA, c)),
-      row("EBIT", nodeVal(GROUPS.EBIT, p), nodeVal(GROUPS.EBIT, c)),
-      row("Result for the period", np, nodeVal(GROUPS.NP, c), true),
-    ]) +
-    (cf ? '<tr class="sec"><td colspan="5">Cash flow ' + esc(rep(c).asOf) + " → " + esc(R.asOf) + "</td></tr>" +
-      [["Cash flow from operating activities", cf.operating], ["Cash flow from investing activities", cf.investing],
-       ["Cash flow from financing activities", cf.financing], ["Net change in cash and cash equivalents", cf.net]]
-        .map((r, i) => '<tr' + (i === 3 ? ' class="sub"' : "") + '><td class="lbl">' + esc(r[0]) +
-          '</td><td class="num ' + (r[1] >= 0 ? "pos" : "neg") + '">' + fmt(r[1]) +
-          '</td><td class="num"></td><td class="num chg"></td><td class="num chg"></td></tr>').join("") : "") +
-    "</tbody></table>" + yearsTable + worthTable +
-    pFoot("Figures shown on the Overview page")
-  );
-}
 
-function pageBalanceSheet(p, c, sum) {
-  const ta = nodeVal(GROUPS.TA, p), tle = nodeVal(GROUPS.TLE, p), d = r2(ta - tle);
-  const eq = nodeVal(GROUPS.EQ, p), cash = nodeVal(GROUPS.FONDS, p);
-  return pPage(
-    pHead("Balance sheet", "<b>as at " + esc(rep(p).asOf) + "</b><br>compared with " + esc(periodLabel(c))) +
-    pKpis([
-      { k: "Total assets", v: fmt(ta) },
-      { k: "Total liabilities", v: fmt(nodeVal(GROUPS.TL, p)) },
-      { k: "Equity — net worth", v: fmt(eq), vc: eq >= 0 ? "pos" : "neg" },
-      { k: "Cash, equivalents and investments", v: fmt(cash + investedAt(p)) },
-    ]) +
-    '<table class="pt c6">' + statementHTML(BS, p, c, !!S.zerosBS, true, sum) + "</table>" +
-    pFoot(nil(d) ? "Assets equal liabilities and equity" : "⚠ Out of balance by " + fmt(d))
-  );
-}
 
-function pageIncomeStatement(p, c, sum) {
-  const np = nodeVal(GROUPS.NP, p), ti = nodeVal(GROUPS.TI, p);
-  const m = monthsOf(p), mc = monthsOf(c);
-  return pPage(
-    pHead("Income statement",
-      "<b>" + esc(periodLabel(p)) + "</b><br>" + m + " month" + (m === 1 ? "" : "s") + " to " + esc(rep(p).asOf)) +
-    pKpis([
-      { k: "Total income", v: fmt(ti) },
-      { k: "Total expenses", v: fmt(-r2(ti - np)), vc: "neg" },
-      { k: "Result for the period", v: fmt(np), vc: np >= 0 ? "pos" : "neg" },
-      { k: "Savings rate", v: (ti ? (np / ti) * 100 : 0).toFixed(1) + "%" },
-    ]) +
-    '<table class="pt c6">' + statementHTML(IS, p, c, !!S.zerosIS, true, sum) + "</table>" +
-    pFoot(m === mc
-      ? "Compared with " + esc(periodLabel(c))
-      : "⚠ " + m + " months against " + mc + " — the comparison is not like for like")
-  );
-}
 
-function pageCashFlow(p, c, sum) {
-  if (p === c) return "";
-  const cf = buildCF(p, c);
-  return pPage(
-    pHead("Cash flow statement", "<b>" + esc(rep(c).asOf) + " → " + esc(rep(p).asOf) + "</b><br>indirect method") +
-    pKpis([
-      { k: "Operating", v: fmt(cf.operating), vc: cf.operating >= 0 ? "pos" : "neg" },
-      { k: "Investing", v: fmt(cf.investing), vc: cf.investing >= 0 ? "pos" : "neg" },
-      { k: "Financing", v: fmt(cf.financing), vc: cf.financing >= 0 ? "pos" : "neg" },
-      { k: "Net change in cash", v: fmt(cf.net), vc: cf.net >= 0 ? "pos" : "neg" },
-    ]) +
-    '<table class="pt c3"><thead><tr><th class="acct">Acct</th><th>Position</th><th class="num">' +
-    esc(periodLabel(c)) + " → " + esc(periodLabel(p)) + '</th></tr></thead><tbody>' + cfRows(cf, true, sum) + "</tbody></table>" +
-    pFoot(nil(cf.check) ? "Reconciles to the movement in cash" : "⚠ Out by " + fmt(cf.check))
-  );
-}
 
-const invLegend =
-  '<div class="plegend">' +
-  '<span><i style="background:#4A7DB5"></i>Paid in</span>' +
-  '<span><i style="background:#2E7D5B"></i>Value adjustment — gain</span>' +
-  '<span><i style="background:#A6262D"></i>Value adjustment — loss</span>' +
-  '<span><i style="background:repeating-linear-gradient(45deg,#C48A16 0 3px,transparent 3px 6px)"></i>Forecast</span></div>';
 
-function printChart(pts, uid, h) {
-  const out = chartMarkup(pts, { w: PAGE_W, h: h || 250, uid: uid, theme: PRINT_THEME, interactive: false });
-  return '<svg viewBox="0 0 ' + Math.round(PAGE_W) + " " + (h || 250) + '" xmlns="http://www.w3.org/2000/svg">' + out.inner + "</svg>";
-}
-
-function pageInvSnapshot(p) {
-  const set = investments().filter((i) => i.include);
-  const pay = r2(set.reduce((s, i) => s + sumAt(p, i.pay), 0));
-  const adj = r2(set.reduce((s, i) => s + sumAt(p, i.adj), 0));
-  const rows = set.map((i) => {
-    const a = sumAt(p, i.pay), b = sumAt(p, i.adj), v = r2(a + b), ret = a ? (b / a) * 100 : 0;
-    return '<tr><td class="acct">' + esc(i.pay.join(",")) + '</td><td class="lbl">' + esc(i.label) +
-      '</td><td class="num">' + fmt(a) + '</td><td class="num ' + (b >= 0 ? "pos" : "neg") + '">' +
-      (nil(b) ? "–" : (b > 0 ? "+" : "\u2212") + fmt(Math.abs(b))) + '</td><td class="num">' + fmt(v) +
-      '</td><td class="num ' + (ret >= 0 ? "pos" : "neg") + '">' + (nil(b) ? "–" : (ret >= 0 ? "+" : "\u2212") + Math.abs(ret).toFixed(1) + "%") + "</td></tr>";
-  }).join("");
-
-  return pPage(
-    pHead("Financial investments — snapshot", "<b>as at " + esc(rep(p).asOf) + "</b><br>" + set.length + " position" + (set.length === 1 ? "" : "s") + ", rent deposit excluded") +
-    pKpis([
-      { k: "Paid in", v: fmt(pay) },
-      { k: "Value adjustment", v: (adj >= 0 ? "+" : "\u2212") + fmt(Math.abs(adj)), vc: adj >= 0 ? "pos" : "neg" },
-      { k: "Market value", v: fmt(r2(pay + adj)) },
-      { k: "Return on contributions", v: (pay ? (adj / pay) * 100 : 0).toFixed(1) + "%", vc: adj >= 0 ? "pos" : "neg" },
-    ]) +
-    printChart(buildSeries(set, 0), "snap", 250) + invLegend +
-    '<table class="pt"><thead><tr><th class="acct">Acct</th><th>Position</th><th class="num">Paid in</th>' +
-    '<th class="num">Value adjustment</th><th class="num">Value</th><th class="num">Return</th></tr></thead><tbody>' +
-    rows +
-    '<tr class="tot"><td></td><td class="lbl">Total</td><td class="num">' + fmt(pay) +
-    '</td><td class="num ' + (adj >= 0 ? "pos" : "neg") + '">' + (adj >= 0 ? "+" : "\u2212") + fmt(Math.abs(adj)) +
-    '</td><td class="num">' + fmt(r2(pay + adj)) + '</td><td class="num">' +
-    (pay ? (adj >= 0 ? "+" : "\u2212") + Math.abs((adj / pay) * 100).toFixed(1) + "%" : "–") + "</td></tr>" +
-    "</tbody></table>" +
-    '<p class="pnote">Paid in is the net contribution booked to the pay-in account. The value adjustment is the unrealised gain or loss held on its own account; positions without a split account show their whole balance as paid in.</p>' +
-    pFoot("Positions ticked under Data &amp; mapping")
-  );
-}
-
-function pageInvForecast(p, years) {
-  const set = investments().filter((i) => i.include);
-  const pts = buildSeries(set, years);
-  const end = pts[pts.length - 1];
-  const rows = set.map((i) => {
-    const one = buildSeries([i], years);
-    const e = one[one.length - 1];
-    const now = r2(sumAt(p, i.pay) + sumAt(p, i.adj));
-    return '<tr><td class="acct">' + esc(i.pay.join(",")) + '</td><td class="lbl">' + esc(i.label) +
-      '</td><td class="num">' + fmt(now) + '</td><td class="num">' + fmt(+i.monthly || 0) +
-      '</td><td class="num">' + (+i.ret || 0).toFixed(2) + '%</td><td class="num">' + fmt(e.pay) +
-      '</td><td class="num pos">' + fmt(r2(e.val - e.pay)) + '</td><td class="num">' + fmt(e.val) + "</td></tr>";
-  }).join("");
-  const nowVal = r2(set.reduce((s, i) => s + sumAt(p, i.pay) + sumAt(p, i.adj), 0));
-
-  return pPage(
-    pHead("Financial investments — " + years + "-year forecast",
-      "<b>" + esc(rep(p).asOf) + " → " + esc(end.t) + "</b><br>monthly contributions, monthly compounding") +
-    pKpis([
-      { k: "Value today", v: fmt(nowVal) },
-      { k: "Paid in by " + end.t.slice(0, 4), v: fmt(end.pay) },
-      { k: "Growth", v: fmt(r2(end.val - end.pay)), vc: "pos" },
-      { k: "Projected value", v: fmt(end.val), vc: "pos" },
-    ]) +
-    printChart(pts, "fc" + years, 250) + invLegend +
-    '<table class="pt"><thead><tr><th class="acct">Acct</th><th>Position</th><th class="num">Value today</th>' +
-    '<th class="num">Monthly pay-in</th><th class="num">Return p.a.</th><th class="num">Paid in by ' + end.t.slice(0, 4) +
-    '</th><th class="num">Growth</th><th class="num">Projected value</th></tr></thead><tbody>' + rows +
-    '<tr class="tot"><td></td><td class="lbl">Total</td><td class="num">' + fmt(nowVal) +
-    '</td><td class="num">' + fmt(r2(set.reduce((s, i) => s + (+i.monthly || 0), 0))) + '</td><td class="num"></td>' +
-    '<td class="num">' + fmt(end.pay) + '</td><td class="num pos">' + fmt(r2(end.val - end.pay)) +
-    '</td><td class="num">' + fmt(end.val) + "</td></tr></tbody></table>" +
-    '<p class="pnote">A projection, not a promise: contributions and returns are the assumptions entered on the Investments page and are held flat for the whole horizon. Taxes, fees and inflation are not modelled.</p>' +
-    pFoot("Assumptions as entered on " + today())
-  );
-}
-
-/* ---------------------------------------------------------------------- */
-const MIN_SCALE = 0.62;   // below this the type stops being readable
-
-function fitPages(root) {
-  $$(".pg", root).forEach((pg) => {
-    const inner = $(".pgin", pg);
-    pg.classList.remove("flow");
-    inner.style.transform = "none";
-    inner.style.width = "100%";
-    const h = inner.getBoundingClientRect().height;
-    if (!h || h <= PAGE_H) return;
-    const need = (PAGE_H - 2) / h;
-    const k = Math.max(MIN_SCALE, need);
-    inner.style.transform = "scale(" + k.toFixed(4) + ")";
-    inner.style.width = (100 / k).toFixed(3) + "%";
-    /* too dense even at the floor: let it run onto a second sheet rather
-       than silently clip a statement line */
-    if (need < MIN_SCALE) pg.classList.add("flow");
-  });
-}
-
-function exportPDF(sum) {
-  const p = S.activePeriod, c = S.comparePeriod;
-  const old = document.getElementById("printRoot");
-  if (old) old.remove();
-
-  const root = document.createElement("div");
-  root.id = "printRoot";
-  root.innerHTML =
-    pageOverview(p, c) +
-    pageBalanceSheet(p, c, sum) +
-    pageIncomeStatement(p, c, sum) +
-    pageCashFlow(p, c, sum) +
-    pageInvSnapshot(p) +
-    FORECAST_YEARS.map((y) => pageInvForecast(p, y)).join("");
-  /* variances follow the switch on the balance sheet / income statement */
-  if (S.showVariance === false) {
-    $$("table.pt", root).forEach((t) => {
-      const cut = $$(".chg", t);
-      if (!cut.length) return;
-      cut.forEach((el) => el.remove());
-      t.classList.add("nv");
-      $$("td[colspan]", t).forEach((td) => { td.colSpan = t.classList.contains("c6") ? 4 : 3; });
-    });
-  }
-  document.body.appendChild(root);
-
-  fitPages(root);
-  S.toast((sum ? "Summarized document" : "Detailed document") + " ready — choose “Save as PDF” as the destination", "good");
-  setTimeout(() => window.print(), 120);
-}
 const XL_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 const xlEnc = new TextEncoder();
 
@@ -10162,132 +9065,13 @@ function buildXLSX() {
   return xlBook([ov, bs, is].concat(cfSh ? [cfSh] : [], [inv]));
 }
 
-function xlsxName() {
-  return today() + "_Financial-Statements_" + S.activePeriod + ".xlsx";
-}
 
-async function exportXLSX() {
-  let blob;
-  try { blob = buildXLSX(); }
-  catch (e) { S.toast("Could not build the workbook: " + (e.message || e), "err"); return; }
-  try {
-    if (window.showSaveFilePicker) {
-      const h = await window.showSaveFilePicker({
-        suggestedName: xlsxName(),
-        types: [{ description: "Excel workbook", accept: { [XL_MIME]: [".xlsx"] } }],
-      });
-      const w = await h.createWritable();
-      await w.write(blob); await w.close();
-      S.toast("Excel saved to " + h.name, "good");
-    } else {
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url; a.download = xlsxName(); a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 4000);
-      S.toast("Excel workbook downloaded", "good");
-    }
-  } catch (e) {
-    if (e && e.name === "AbortError") return;
-    S.toast("Could not save the workbook: " + (e.message || e), "err");
-  }
-}
-function renderNcTx() {
-  S.ncTx = S.ncTx || [];
-  const inp = (i, f, v, attrs) => '<input class="cell" data-tx="' + i + '" data-f="' + f + '" value="' + esc(v) + '"' + (attrs || "") + ">";
-  $("#ncTxTable").innerHTML =
-    "<thead><tr><th>Date</th><th>Description</th><th>Asset acct</th><th>Liability accts</th><th class='num'>Amount</th><th></th></tr></thead><tbody>" +
-    (S.ncTx.length ? S.ncTx.map((t, i) =>
-      "<tr><td>" + inp(i, "date", t.date || "", ' type="date"') + "</td>" +
-      "<td>" + inp(i, "label", t.label || "", ' style="width:220px"') + "</td>" +
-      "<td>" + inp(i, "asset", t.asset || "", ' style="width:70px"') + "</td>" +
-      "<td>" + inp(i, "liab", (t.liab || []).join(", "), ' style="width:110px"') + "</td>" +
-      "<td class='num'>" + inp(i, "amount", +t.amount || 0, ' type="number" step="100" style="width:100px"') + "</td>" +
-      '<td><button class="btn small ghost danger" data-txdel="' + i + '">Remove</button></td></tr>'
-    ).join("") : '<tr><td colspan="6" class="empty">None recorded.</td></tr>') + "</tbody>";
-  $$("#ncTxTable [data-tx]").forEach((el) => el.onchange = () => {
-    const t = S.ncTx[+el.getAttribute("data-tx")], f = el.getAttribute("data-f");
-    if (f === "amount") t.amount = +el.value || 0;
-    else if (f === "liab") t.liab = el.value.split(/[,;\s]+/).filter(Boolean);
-    else t[f] = el.value.trim();
-    S.touch(true);
-  });
-  $$("#ncTxTable [data-txdel]").forEach((b) => b.onclick = () => {
-    S.ncTx.splice(+b.getAttribute("data-txdel"), 1);
-    S.touch(true);
-  });
-}
 
-function renderCfMap() {
-  const showAll = !!S.cfShowAll;
-  const bs = allAccounts().filter((a) => +a < 3000);
-  const list = showAll ? bs : bs.filter((a) => S.cfOverrides[a] || (S.ncOverrides || {})[a] !== undefined || !nil(bsMove(a, S.activePeriod, S.comparePeriod)));
-  const fold = cfFoldParent(bs.filter((a) => cfClassOf(a) === "invest"));
-  $("#cfMapTable").innerHTML =
-    "<thead><tr><th>Acct</th><th>Name</th><th class='num'>Movement</th><th>Cash flow section</th><th>Non-cash</th></tr></thead><tbody>" +
-    list.map((a) => {
-      const k = cfClassOf(a);
-      const sel = '<select class="pill" style="padding:5px 26px 5px 9px;font-size:12px" data-cf="' + esc(a) + '">' +
-        CF_ORDER.map((c) => '<option value="' + c + '"' + (k === c ? " selected" : "") + ">" + esc(CF_CLASSES[c].l) + "</option>").join("") + "</select>";
-      return "<tr><td style='font-family:var(--num);font-size:12px'>" + esc(a) + "</td><td>" + esc(nameOf(a)) + "</td>" +
-        "<td class='num'>" + fmt(bsMove(a, S.activePeriod, S.comparePeriod)) + "</td><td>" + sel + "</td>" +
-        "<td>" + (fold[a]
-          ? '<span class="chip" title="Shown together with its parent account">with ' + esc(fold[a]) + "</span>"
-          : '<label class="toggle"' + (isPensionAcct(a) ? ' title="Follows the “Pension fund in investing” switch on the cash flow page"' : "") + '><input type="checkbox" data-nc="' + esc(a) + '"' +
-            (isNonCashAcct(a) ? " checked" : "") + (isPensionAcct(a) ? " disabled" : "") + "></label>") + "</td></tr>";
-    }).join("") + "</tbody>";
 
-  $$("#cfMapTable [data-cf]").forEach((sel) => sel.onchange = () => {
-    const a = sel.getAttribute("data-cf");
-    const auto = (() => { for (const c of CF_ORDER) if (inRanges(a, CF_CLASSES[c].def)) return c; return null; })();
-    if (sel.value === auto) delete S.cfOverrides[a]; else S.cfOverrides[a] = sel.value;
-    S.touch(true);
-  });
-  $$("#cfMapTable [data-nc]").forEach((cb) => cb.onchange = () => {
-    S.ncOverrides = S.ncOverrides || {};
-    S.ncOverrides[cb.getAttribute("data-nc")] = cb.checked;
-    S.touch(true);
-  });
-}
-
-function renderInvMap() {
-  const inv = investments();
-  const cands = invKandidaten();
-  $("#invMapTable").innerHTML =
-    "<thead><tr><th>On chart</th><th>Name</th><th>Pay-in accounts</th><th>Value adjustment</th></tr></thead><tbody>" +
-    inv.map((i, n) =>
-      "<tr><td><input type='checkbox' data-im='" + n + "' data-f='include'" + (i.include ? " checked" : "") + "></td>" +
-      "<td><input class='cell wide' data-im='" + n + "' data-f='label' value='" + esc(i.label) + "'></td>" +
-      "<td style='font-family:var(--num);font-size:12px'>" + esc(i.pay.join(", ")) + "</td>" +
-      "<td><select class='pill' style='padding:5px 26px 5px 9px;font-size:12px' data-im='" + n + "' data-f='adj1'>" +
-      '<option value="">— none, treat the balance as paid in —</option>' +
-      cands.map((a) => '<option value="' + esc(a) + '"' + (i.adj.indexOf(a) >= 0 ? " selected" : "") + ">" + esc(a) + " · " + esc(nameOf(a)) + "</option>").join("") +
-      "</select></td></tr>"
-    ).join("") + "</tbody>";
-
-  $$("#invMapTable [data-im]").forEach((el) => el.onchange = () => {
-    const i = investments()[+el.getAttribute("data-im")], f = el.getAttribute("data-f");
-    if (f === "adj1") i.adj = el.value ? [el.value] : [];
-    else if (el.type === "checkbox") i.include = el.checked;
-    else i.label = el.value;
-    S.touch(true);
-  });
-  if ($("#btnAddTx")) $("#btnAddTx").onclick = () => {   /* app hook: the editor is gone with the direct cash flow */
-    S.ncTx = S.ncTx || [];
-    S.ncTx.push({ date: String(rep(S.activePeriod).asOf || ""), label: "", asset: "", liab: [], amount: 0 });
-    S.touch(true);
-  };
-  $("#btnRedetect").onclick = () => {
-    if (!confirm("Detect the investment accounts again? Your labels, pay-ins and return assumptions are reset.")) return;
-    S.investments = null; investments(); S.touch(true);
-    S.toast("Investments detected again", "good");
-  };
-}
-return {S, BS, IS, GROUPS, GROUP_LIST, periods, rep, accVal, nameOf, inRanges, groupOf, allAccounts, accountsIn, invalidate,
-  profitOf, nodeVal, monthsOf, periodLabel, statementHTML, wireDrill, kpi, vsPrev, spanMonths, investedAt, investments,
-  buildCF, buildCFLeg, chainPoints, cfRows, cfClassOf, isNonCashAcct, sameFY, fmt, fmtK, fmtPct, nil, r2, esc, CUR,
-  resetCfUid: () => { CF_UID = 0; },
-  buildSeries, renderInv, resetForecast, renderOverview, yearSeries, worthSeries, exportPDF, buildXLSX, xlsxName, XL_MIME,
-  renderNcTx, renderCfMap, renderInvMap};
+return {S, BS, IS, GROUPS, periods, rep, accVal, nameOf, groupOf, allAccounts, accountsIn, invalidate,
+  profitOf, nodeVal, monthsOf, periodLabel, statementHTML, investedAt, investments,
+  buildCF, cfClassOf, fmt, fmtPct, nil, r2, CUR,
+  buildSeries, resetForecast, yearSeries, worthSeries, buildXLSX};
 }
 if(typeof module !== "undefined") module.exports = {FSKern};
 
@@ -11091,7 +9875,8 @@ function renderSachanlagenSeite(animate){
       h('td', {}, [a.monate + ' m' + (a.rhythmus === 'jahr' ? ', yearly' : ''), h('small', { class: 'ev-inv-acc' }, [x.ende ? 'to ' + dateLong(x.ende + '-01').slice(3) : ''])]),
       h('td', { class: 'num' }, [fz2(x.abgegangen ? 0 : x.gebucht)]), h('td', { class: 'num' }, [h('b', {}, [fz2(x.buchwert)])]),
       h('td', { class: 'num' }, [x.abgegangen ? '–' : fz2(x.monatlich)]), h('td', {}, status),
-      h('td', { class: 'a' }, zu ? [] : [knopf('Edit', () => anlageDialog({ id: a.id })), a.abgang ? null : knopf('Sell', () => abgangDialog(a.id)),
+      /* a sold asset keeps the schedule it was sold with: no Edit, no Sell */
+      h('td', { class: 'a' }, zu ? [] : [a.abgang ? null : knopf('Edit', () => anlageDialog({ id: a.id })), a.abgang ? null : knopf('Sell', () => abgangDialog(a.id)),
         h('button', { type: 'button', class: 'btn btn--ghost btn--sm btn--icon', 'aria-label': 'Remove ' + a.text + ' from the register', title: 'Remove from the register', html: icon('x', 14), onclick: e => { e.stopPropagation(); anlageEntfernen(a.id); } })])]));
   });
   if (liste.length) tb.appendChild(h('tr', { class: 'ev-sumrow' }, [h('td', {}, [h('b', {}, ['Total'])]), h('td'), h('td', { class: 'num' }, [h('b', {}, [fz2(ue.total.kosten)])]), h('td'),
@@ -11176,6 +9961,7 @@ const miniFiguren = liste => h('div', { class: 'ev-figs ev-figs--mini' }, liste.
 function anlageDialog(o){
   o = o || {};
   const vorhanden = o.id ? (state.anlagen || []).find(a => a.id === o.id) : null;
+  if (vorhanden && vorhanden.abgang){ toast(vorhanden.text + ' is sold: its schedule stays as it was when it was sold.', { type: 'error' }); return; }
   const a = vorhanden ? E.anlageNorm(vorhanden) : E.anlageNorm(Object.assign({ id: '', datum: o.datum || heute(), konto: o.konto || '', kosten: o.kosten || 0, text: o.text || '' }, o.vorgabe || {}));
   if (!vorhanden){
     const v = E.anlageVorschlag(state, ix, a.konto); if (!a.wb && !('wb' in (o.vorgabe || {}))) a.wb = v.wb; if (!a.aufwand) a.aufwand = v.aufwand;
@@ -11230,7 +10016,7 @@ function anlageDialog(o){
     return E.anlageNorm(a);
   }
   function vorschau(){
-    const n = lesen(), fehler = E.anlagePruefen(n, ix);
+    const n = lesen(), fehler = E.anlagePruefen(n, ix, state);
     vorschauBox.innerHTML = '';
     if (fehler.length){ ok.disabled = true; vorschauBox.appendChild(h('div', { class: 'ev-check is-fehler' }, [h('span', { class: 'ev-check__i', html: icon('x', 12) }), h('span', {}, [fehler[0]])])); return; }
     ok.disabled = false;
@@ -11244,7 +10030,7 @@ function anlageDialog(o){
   [f.rhythmus, f.start, f.ab].forEach(el => el.addEventListener('change', vorschau));
   [f.text, f.datum, f.monate, f.kosten, f.restwert, f.vorher].forEach(el => el.addEventListener('input', vorschau));
   ok.onclick = () => {
-    const n = lesen(), fehler = E.anlagePruefen(n, ix);
+    const n = lesen(), fehler = E.anlagePruefen(n, ix, state);
     if (fehler.length){ toast(fehler.join(' '), { type: 'error' }); return; }
     if (!vorhanden) n.id = 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
     if (o.buchung) n.buchung = o.buchung;
@@ -11264,14 +10050,16 @@ function anlageDialog(o){
 async function anlageEntfernen(id){
   const a = (state.anlagen || []).find(x => x.id === id); if (!a) return;
   const eigene = state.buchungen.filter(b => b.plan && b.plan.id === id && !istGeschlossen(b.datum.slice(0, 4)));
-  const wahl = await frage('Remove ' + a.text + ' from the register?', eigene.length ? 'It has ' + eigene.length + ' depreciation booking' + (eigene.length === 1 ? '' : 's') + ' in open years. Keep them as ordinary bookings, or delete them with it?' : 'No bookings of the register are affected.',
+  const inZu = state.buchungen.filter(b => b.plan && b.plan.id === id && istGeschlossen(b.datum.slice(0, 4))).length;
+  const wahl = await frage('Remove ' + a.text + ' from the register?', (eigene.length ? 'It has ' + eigene.length + ' depreciation booking' + (eigene.length === 1 ? '' : 's') + ' in open years. Keep them as ordinary bookings, or delete them with it?' : 'No bookings of open years are affected.')
+      + (inZu ? ' Its ' + inZu + ' booking' + (inZu === 1 ? '' : 's') + ' in closed years stay as they are.' : ''),
     eigene.length ? [{ text: 'Cancel', wert: null, art: 'leicht' }, { text: 'Delete the bookings too', wert: 'loeschen', art: 'gefahr' }, { text: 'Keep the bookings', wert: 'behalten' }]
       : [{ text: 'Cancel', wert: null, art: 'leicht' }, { text: 'Remove', wert: 'behalten', art: 'gefahr' }]);
   if (!wahl) return;
   if (!aendere('Asset removed from the register', () => {
     state.anlagen = state.anlagen.filter(x => x.id !== id);
     if (wahl === 'loeschen') state.buchungen = state.buchungen.filter(b => !(b.plan && b.plan.id === id && !istGeschlossen(b.datum.slice(0, 4))));
-    else state.buchungen.forEach(b => { if (b.plan && b.plan.id === id) delete b.plan; });
+    else state.buchungen.forEach(b => { if (b.plan && b.plan.id === id && !istGeschlossen(b.datum.slice(0, 4))) delete b.plan; });   // closed years stay as they are
   })) return;
   render(false); toast(a.text + ' removed from the register.', { action: { text: 'Undo', fn: rueckgaengig } });
 }
@@ -11361,8 +10149,13 @@ function gruppeFuerNummer(nr){ const n = parseFloat(nr); const g = state.gruppen
 const ktOffen = {};
 let ktSuche = '', ktNurBenutzt = false;
 function renderKontenSeite(){
-  const bis = tagDesJahres(), salden = E.saldoPer(state, bis), benutzt = {};
+  const bis = tagDesJahres(), salden = E.saldoPer(state, bis), benutzt = {}, sonst = {};
   state.buchungen.forEach(b => b.z.forEach(z => { benutzt[z[0]] = (benutzt[z[0]] || 0) + 1; }));
+  /* an account can only be deleted when nothing uses it: no booking line, no imported closing, no fixed asset, no system account */
+  const nenne = (nr, was) => { if (!nr) return; const l = sonst[nr] = sonst[nr] || []; if (l.indexOf(was) < 0) l.push(was); };
+  (state.vergleichsjahre || []).forEach(v => Object.keys(v.salden || {}).forEach(nr => nenne(nr, 'imported closing ' + v.jahr)));
+  (state.anlagen || []).forEach(a => [a.konto, a.wb, a.aufwand, a.abgang && a.abgang.konto].forEach(nr => nenne(nr, 'fixed asset “' + a.text + '”')));
+  Object.keys(state.einstellungen || {}).forEach(k => nenne(state.einstellungen[k], 'system account'));
   const alle = kontenSortiert(), q = norm(ktSuche.trim()), wl = Object.keys(state.kurse || {});
   $('#eyebrow').textContent = alle.length + ' accounts in ' + state.gruppen.length + ' groups · balances at ' + dateLong(bis);
   const grpSel = $('#kt-grp'), sig = state.gruppen.map(g => g.c + ':' + g.t).join('|');          // the file's groups (another file, a new group)
@@ -11385,7 +10178,8 @@ function renderKontenSeite(){
           ktOffen[e.target.value] = true; render(false); toast(k.nr + ' moved to ' + (ix.gm[e.target.value] || {}).t + '.', { action: { text: 'Undo', fn: rueckgaengig } }); } } });
       const wkz = bil ? kleinSelect(optionen([['', state.waehrung]].concat(wl.map(w => [w, w])), k.wkz || ''), { 'aria-label': 'Currency of ' + k.nr, onchange: e => {
         aendere('Currency of ' + k.nr + ' changed', () => { const x = state.konten.find(y => y[0] === k.nr); while (x.length <= 4) x.push(null); x[4] = e.target.value || null; }); } }) : '';
-      const weg = benutzt[k.nr] ? h('span', { class: 'ev-used', title: benutzt[k.nr] + ' booking lines' }, [String(benutzt[k.nr])])
+      const weg = benutzt[k.nr] ? h('span', { class: 'ev-used', title: benutzt[k.nr] + ' booking lines' + (sonst[k.nr] ? '; ' + sonst[k.nr].join(', ') : '') }, [String(benutzt[k.nr])])
+        : sonst[k.nr] ? h('span', { class: 'ev-used', title: 'Used by: ' + sonst[k.nr].join(', ') }, [String(sonst[k.nr].length)])
         : h('button', { type: 'button', class: 'btn btn--ghost btn--sm btn--icon', 'aria-label': 'Delete account ' + k.nr, title: 'Delete (never used)', html: icon('x', 14), onclick: () => {
           if (aendere('Account ' + k.nr + ' deleted', () => { state.konten = state.konten.filter(x => x[0] !== k.nr); })){ render(false); toast('Account ' + k.nr + ' deleted.', { action: { text: 'Undo', fn: rueckgaengig } }); } } });
       return h('tr', {}, [h('td', { class: 'nr' }, [k.nr]), zelle(name, 'ev-w-name'), zelle(grp, 'ev-w-grp'), zelle(wkz || h('span', { class: 'ev-fx' }, ['–']), 'ev-w-cur'),
@@ -11574,7 +10368,11 @@ function renderVergleichSeite(){
         if (aendere('Closing ' + v.jahr + ' removed', () => { state.vergleichsjahre = state.vergleichsjahre.filter(x => x.jahr !== v.jahr); })){ render(false); toast('Closing ' + v.jahr + ' removed.', { action: { text: 'Undo', fn: rueckgaengig } }); } } }, ['Remove'])])]);
   })) : karteLeer('No closing imported yet', 'Closing balance lists from Banana, Abacus, Excel or EVEN, for years without bookings in this file.'));
 }
+/* years close in order, the earliest first, and reopen the other way round: a closed year opens from the years before
+   it, so none of those may still change */
 async function jahrSchliessen(j){
+  const davor = Object.keys(E.jahreMitBuchungen(state)).map(Number).filter(y => y < j && !istGeschlossen(y)).sort((a, c) => a - c);
+  if (davor.length){ toast('Close ' + davor.join(', ') + ' first: ' + j + ' opens from ' + (davor.length > 1 ? 'those years' : 'that year') + ', so ' + (davor.length > 1 ? 'they have' : 'it has') + ' to be closed before it.', { type: 'error' }); return; }
   const b = E.bilanz(state, ix, j + '-01-01', j + '-12-31');
   const schief = E.kontrolle(state, ix).schief.filter(id => { const x = state.buchungen.find(y => y.id === id); return x && String(x.datum).slice(0, 4) === String(j); });
   if (Math.abs(b.differenz) >= .005 || schief.length){ toast('Year ' + j + ' cannot be closed: ' + (schief.length ? schief.length + ' faulty booking(s).' : 'the balance sheet is off by ' + tsd(b.differenz, 2) + '.'), { type: 'error' }); return; }
@@ -11588,6 +10386,8 @@ async function jahrSchliessen(j){
     baueKontrollen(); render(false); toast('Year ' + j + ' closed.', { type: 'success', action: { text: 'Undo', fn: rueckgaengig } }); }
 }
 async function jahrOeffnen(j){
+  const danach = (state.abgeschlossen || []).filter(y => y > j).sort((a, c) => c - a);
+  if (danach.length){ toast('Reopen ' + danach.join(', ') + ' first: ' + (danach.length > 1 ? 'they open' : 'it opens') + ' from ' + j + ', so a change in ' + j + ' would change a closed year.', { type: 'error' }); return; }
   if (!await frage('Reopen the year ' + j + '?', 'Its bookings become changeable again. Every change also changes the opening balances of the following years.', [{ text: 'Cancel', wert: false, art: 'leicht' }, { text: 'Reopen', wert: true, art: 'gefahr' }])) return;
   if (aendere('Year ' + j + ' reopened', () => { state.abgeschlossen = (state.abgeschlossen || []).filter(x => x !== j); }, { jahreFrei: true })){ baueKontrollen(); render(false); toast('Year ' + j + ' reopened.', { action: { text: 'Undo', fn: rueckgaengig } }); }
 }
@@ -12313,7 +11113,7 @@ Kit.initDropdowns("select.select");
       hg.onpointerdown = e => { if(e.target === hg) filterZu(); };
       hg.addEventListener("keydown", e => {
         if(e.key === "Escape"){ e.preventDefault(); e.stopPropagation(); filterZu(); }
-        else if(e.key === "F2" || (e.key === "Enter" && e.target.matches("input"))){ e.preventDefault(); filterSetzen(); }
+        else if(e.key === "F2" || (e.key === "Enter" && e.target.matches("input"))){ e.preventDefault(); e.stopPropagation(); filterSetzen(); }   // never Ctrl+Enter's booking too
       }); },
     /* keys: Escape closes the sheet and the pickers (a dialog closes itself); Ctrl/Cmd + S saves (with Shift: as a new
        file), + Enter books from anywhere on Book, + Z / Y (or Shift + Z) undo and redo outside a field; + F opens the
