@@ -606,9 +606,18 @@ function set(id, how){
   }
   return true;
 }
+/* the ambient light holds still for a moment while the tool builds a page, a day or a sheet (html.dl-rest; Glass's
+   drifting light pauses under it, see effects.css). The kit calls it on a tab, a segment and a dialog opening; a tool
+   calls Kit.rest() itself for other redraws (e.g. a day swipe). Calls in a row extend the rest. */
+let restT = 0;
+function rest(ms){ root.classList.add('dl-rest'); clearTimeout(restT); restT = setTimeout(() => root.classList.remove('dl-rest'), ms || 1200); }
 function init(o){
   cfg = o;
   window.addEventListener('storage', e => { if (e.key === themeKey() && THEMES[e.newValue]) set(e.newValue, 'other'); });
+  /* capture: dl:tab and dl:seg are fired on their element and may not bubble */
+  document.addEventListener('dl:tab', () => rest(), true);
+  document.addEventListener('dl:seg', () => rest(), true);
+  document.addEventListener('dl:overlay', e => { if (e.detail && e.detail.open) rest(); }, true);
   let start = root.getAttribute('data-theme');
   if (!THEMES[start]) start = THEMES[o.defaultTheme] ? o.defaultTheme : Object.keys(THEMES)[0];
   set(start, 'boot');
@@ -905,6 +914,6 @@ const folder = (function(){
 })();
 
 return { themeSwitch: segmentedThemes, lookButton, init, set, theme: () => current, themes: () => Object.keys(THEMES), meta: id => (THEMES[id || current] || {}).meta, isOn, setEffect, numberReveal,
-  appearanceUI, initDropdowns, folder, tok, rgb, REDUCED, TOUCH };
+  appearanceUI, initDropdowns, folder, rest, tok, rgb, REDUCED, TOUCH };
 })();
 </script>

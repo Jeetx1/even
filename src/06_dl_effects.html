@@ -4,11 +4,16 @@
 /* GLASS · signature effects. Everything here hangs off an html.fx-* class; remove the class and the effect is gone. */
 
 /* signature · drifting light: one slow layer of soft light under the glass (v2: brighter, wider, a touch livelier) */
-.ambient .orb{position:absolute;border-radius:50%;filter:blur(70px);will-change:transform;opacity:0;transition:opacity 1.2s ease}
+/* v3 (8.11.2026, from CICO build 2026-11-08.3): no filter. Three screen-sized orbs under a 70 px blur, drifting under
+   frosted cards, made every card re-blur each frame on the iPhone and page changes stalled. Each orb now gets the same
+   softness from a gaussian-like gradient that fades out before the box edge (nothing to clip, no rounding needed).
+   While a page, a day or a sheet is built the light holds still (html.dl-rest, Kit.rest(), ~1.2 s; invisible at a 34-48 s drift). */
+.ambient .orb{position:absolute;will-change:transform;opacity:0;transition:opacity 1.2s ease}
 html.fx-light .ambient .orb{opacity:var(--o)}
-.ambient .orb.a{--o:.72;width:66vmax;height:66vmax;left:-18vmax;top:-22vmax;background:radial-gradient(circle at 40% 40%,#3570AD,rgba(53,112,173,0) 66%);animation:glassDrift1 34s ease-in-out infinite alternate}
-.ambient .orb.b{--o:.55;width:56vmax;height:56vmax;right:-20vmax;top:12vh;background:radial-gradient(circle,#1F6E7E,rgba(31,110,126,0) 64%);animation:glassDrift2 42s ease-in-out infinite alternate}
-.ambient .orb.c{--o:.46;width:50vmax;height:50vmax;left:18vw;bottom:-30vmax;background:radial-gradient(circle,#4A4FA6,rgba(74,79,166,0) 62%);animation:glassDrift3 48s ease-in-out infinite alternate}
+.ambient .orb.a{--o:.72;width:66vmax;height:66vmax;left:-18vmax;top:-22vmax;background:radial-gradient(circle closest-side at 43% 43%,#3570AD 0%,rgba(53,112,173,.86) 18%,rgba(53,112,173,.58) 38%,rgba(53,112,173,.29) 58%,rgba(53,112,173,.09) 78%,rgba(53,112,173,0) 100%);animation:glassDrift1 34s ease-in-out infinite alternate}
+.ambient .orb.b{--o:.55;width:56vmax;height:56vmax;right:-20vmax;top:12vh;background:radial-gradient(circle closest-side,#1F6E7E 0%,rgba(31,110,126,.86) 18%,rgba(31,110,126,.58) 38%,rgba(31,110,126,.29) 58%,rgba(31,110,126,.09) 78%,rgba(31,110,126,0) 100%);animation:glassDrift2 42s ease-in-out infinite alternate}
+.ambient .orb.c{--o:.46;width:50vmax;height:50vmax;left:18vw;bottom:-30vmax;background:radial-gradient(circle closest-side,#4A4FA6 0%,rgba(74,79,166,.86) 18%,rgba(74,79,166,.58) 38%,rgba(74,79,166,.29) 58%,rgba(74,79,166,.09) 78%,rgba(74,79,166,0) 100%);animation:glassDrift3 48s ease-in-out infinite alternate}
+html.dl-rest .ambient .orb{animation-play-state:paused}
 @keyframes glassDrift1{50%{transform:translate3d(8vw,16vh,0) scale(1.06)}100%{transform:translate3d(18vw,6vh,0) scale(1.18)}}
 @keyframes glassDrift2{50%{transform:translate3d(-6vw,22vh,0) scale(1.08)}100%{transform:translate3d(-16vw,10vh,0) scale(.9)}}
 @keyframes glassDrift3{50%{transform:translate3d(14vw,-8vh,0) scale(.94)}100%{transform:translate3d(6vw,-18vh,0) scale(1.14)}}
