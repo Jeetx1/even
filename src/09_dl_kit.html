@@ -403,6 +403,9 @@ window.THEME_FX = (function(){
       }
       if (REDUCED){ place(); api.on(window, 'scroll', () => requestAnimationFrame(place), { passive: true }); }
       else api.loop(now => {
+        /* while the tool builds a page, a day or a sheet (Kit.rest(), html.dl-rest) the light holds still: no transform on
+           the caustic layer and no layout lookups of every panel mid-build. It eases on from where it stood. */
+        if (api.root.classList.contains('dl-rest')){ dirty = true; return; }
         if (now - lastInput > 2600){ const t = now / 1000; L.tx = Math.sin(t * .11) * .75; L.ty = Math.cos(t * .083) * .55 - .25; }
         L.x += (L.tx - L.x) * .06; L.y += (L.ty - L.y) * .06;
         if (dirty || Math.abs(L.x - px) > .0015 || Math.abs(L.y - py) > .0015){ px = L.x; py = L.y; dirty = false; place(); }

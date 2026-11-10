@@ -2,7 +2,7 @@
 <html lang="en" data-theme="glass">
 <head>
 <meta charset="utf-8">
-<meta name="build" content="2026-11-08.1">
+<meta name="build" content="2026-11-10.1">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#070B10">
 <meta name="color-scheme" content="light dark">
@@ -1676,13 +1676,46 @@ html.fx-heat .kpi__value b{text-shadow:0 0 28px rgba(255,106,43,.35)}
 .caustic{position:absolute;inset:-12%;opacity:0;transition:opacity 1.6s ease;will-change:transform}
 html.fx-caustic .caustic{opacity:1}
 .caustic i{position:absolute;display:block;will-change:transform}
-.caustic .glow{width:74vmax;height:74vmax;left:34%;top:-34%;border-radius:50%;filter:blur(64px);opacity:.75;
-  background:conic-gradient(from 0deg,rgba(110,86,255,.26),rgba(22,178,227,.22),rgba(31,199,150,.18),rgba(255,170,46,.2),rgba(255,92,138,.24),rgba(110,86,255,.26));
+/* v2 (10.11.2026, from CICO/RISE build 2026-11-09.1): no filter. The glow sat under blur(64px) and the two bands under
+   blur(14px), all three moving nonstop under frosted cards, so the iPhone re-blurred every card each frame (owner's test
+   9.11.: Caustic light off = smooth). The glow is now ten soft spots of the same spectrum on a ring (the conic disc,
+   pre-blurred: a 64 px gaussian), each band carries its blurred colours (14 px) in its own gradient; the boxes grow by
+   the blur's reach so nothing is clipped. One set of stops for the phone, one from 900 px. Like Glass's drifting light,
+   the light rests under html.dl-rest (Kit.rest()): the animations pause and the module's light loop holds still. */
+.caustic .glow{width:calc(74vmax + 240px);height:calc(74vmax + 240px);margin:-120px 0 0 -120px;left:34%;top:-34%;opacity:.75;
+  background:
+    radial-gradient(28% 28% at 50.0% 28.0%,rgba(110,86,255,.169) 0%,rgba(110,86,255,.145) 18%,rgba(110,86,255,.098) 38%,rgba(110,86,255,.049) 57%,rgba(110,86,255,.015) 78%,rgba(110,86,255,0) 100%),
+    radial-gradient(28% 28% at 62.9% 32.2%,rgba(70,128,242,.156) 0%,rgba(70,128,242,.134) 18%,rgba(70,128,242,.09) 38%,rgba(70,128,242,.045) 57%,rgba(70,128,242,.014) 78%,rgba(70,128,242,0) 100%),
+    radial-gradient(28% 28% at 70.9% 43.2%,rgba(22,178,227,.143) 0%,rgba(22,178,227,.123) 18%,rgba(22,178,227,.083) 38%,rgba(22,178,227,.041) 57%,rgba(22,178,227,.013) 78%,rgba(22,178,227,0) 100%),
+    radial-gradient(28% 28% at 70.9% 56.8%,rgba(26,187,192,.13) 0%,rgba(26,187,192,.112) 18%,rgba(26,187,192,.075) 38%,rgba(26,187,192,.038) 57%,rgba(26,187,192,.012) 78%,rgba(26,187,192,0) 100%),
+    radial-gradient(28% 28% at 62.9% 67.8%,rgba(31,199,150,.117) 0%,rgba(31,199,150,.101) 18%,rgba(31,199,150,.068) 38%,rgba(31,199,150,.034) 57%,rgba(31,199,150,.011) 78%,rgba(31,199,150,0) 100%),
+    radial-gradient(28% 28% at 50.0% 72.0%,rgba(149,184,95,.124) 0%,rgba(149,184,95,.106) 18%,rgba(149,184,95,.072) 38%,rgba(149,184,95,.036) 57%,rgba(149,184,95,.011) 78%,rgba(149,184,95,0) 100%),
+    radial-gradient(28% 28% at 37.1% 67.8%,rgba(255,170,46,.13) 0%,rgba(255,170,46,.112) 18%,rgba(255,170,46,.075) 38%,rgba(255,170,46,.038) 57%,rgba(255,170,46,.012) 78%,rgba(255,170,46,0) 100%),
+    radial-gradient(28% 28% at 29.1% 56.8%,rgba(255,127,96,.143) 0%,rgba(255,127,96,.123) 18%,rgba(255,127,96,.083) 38%,rgba(255,127,96,.041) 57%,rgba(255,127,96,.013) 78%,rgba(255,127,96,0) 100%),
+    radial-gradient(28% 28% at 29.1% 43.2%,rgba(255,92,138,.156) 0%,rgba(255,92,138,.134) 18%,rgba(255,92,138,.09) 38%,rgba(255,92,138,.045) 57%,rgba(255,92,138,.014) 78%,rgba(255,92,138,0) 100%),
+    radial-gradient(28% 28% at 37.1% 32.2%,rgba(180,89,199,.163) 0%,rgba(180,89,199,.14) 18%,rgba(180,89,199,.094) 38%,rgba(180,89,199,.047) 57%,rgba(180,89,199,.015) 78%,rgba(180,89,199,0) 100%);
   animation:prismTurn 160s linear infinite}
-.caustic .band{left:-20%;width:140%;height:7vmax;filter:blur(14px);border-radius:50%;
-  background:linear-gradient(180deg,rgba(110,86,255,0),rgba(110,86,255,.2) 18%,rgba(22,178,227,.2) 36%,rgba(31,199,150,.16) 52%,rgba(255,170,46,.18) 68%,rgba(255,92,138,.2) 84%,rgba(255,92,138,0))}
+.caustic .band{left:-20%;width:140%;height:calc(7vmax + 56px);margin-top:-28px;
+  background:linear-gradient(180deg,rgba(101,96,252,0) 0%,rgba(94,103,248,.014) 10%,rgba(86,114,242,.048) 20%,rgba(78,131,228,.108) 30%,rgba(82,148,202,.154) 40%,rgba(116,158,161,.169) 50%,rgba(168,151,129,.152) 60%,rgba(214,134,116,.103) 70%,rgba(238,120,117,.049) 80%,rgba(249,109,122,.013) 90%,rgba(253,102,127,0) 100%)}
 .caustic .b1{top:26%;transform:rotate(-17deg);animation:prismBand1 46s ease-in-out infinite alternate}
-.caustic .b2{top:62%;height:4.5vmax;opacity:.75;transform:rotate(-11deg);animation:prismBand2 58s ease-in-out infinite alternate}
+.caustic .b2{top:62%;height:calc(4.5vmax + 56px);opacity:.75;transform:rotate(-11deg);animation:prismBand2 58s ease-in-out infinite alternate;
+  background:linear-gradient(180deg,rgba(90,110,243,0) 0%,rgba(87,117,237,.012) 10%,rgba(85,127,226,.039) 20%,rgba(89,137,211,.079) 30%,rgba(102,145,191,.119) 40%,rgba(124,149,168,.137) 50%,rgba(157,147,144,.119) 60%,rgba(186,140,130,.079) 70%,rgba(210,132,122,.039) 80%,rgba(229,123,120,.012) 90%,rgba(239,116,120,0) 100%)}
+@media (min-width:900px){
+  .caustic .glow{background:
+    radial-gradient(28% 28% at 50.0% 28.0%,rgba(110,86,255,.221) 0%,rgba(110,86,255,.19) 18%,rgba(110,86,255,.128) 38%,rgba(110,86,255,.064) 57%,rgba(110,86,255,.02) 78%,rgba(110,86,255,0) 100%),
+    radial-gradient(28% 28% at 62.9% 32.2%,rgba(70,128,242,.204) 0%,rgba(70,128,242,.175) 18%,rgba(70,128,242,.118) 38%,rgba(70,128,242,.059) 57%,rgba(70,128,242,.018) 78%,rgba(70,128,242,0) 100%),
+    radial-gradient(28% 28% at 70.9% 43.2%,rgba(22,178,227,.187) 0%,rgba(22,178,227,.161) 18%,rgba(22,178,227,.108) 38%,rgba(22,178,227,.054) 57%,rgba(22,178,227,.017) 78%,rgba(22,178,227,0) 100%),
+    radial-gradient(28% 28% at 70.9% 56.8%,rgba(26,187,192,.17) 0%,rgba(26,187,192,.146) 18%,rgba(26,187,192,.099) 38%,rgba(26,187,192,.049) 57%,rgba(26,187,192,.015) 78%,rgba(26,187,192,0) 100%),
+    radial-gradient(28% 28% at 62.9% 67.8%,rgba(31,199,150,.153) 0%,rgba(31,199,150,.132) 18%,rgba(31,199,150,.089) 38%,rgba(31,199,150,.044) 57%,rgba(31,199,150,.014) 78%,rgba(31,199,150,0) 100%),
+    radial-gradient(28% 28% at 50.0% 72.0%,rgba(149,184,95,.162) 0%,rgba(149,184,95,.139) 18%,rgba(149,184,95,.094) 38%,rgba(149,184,95,.047) 57%,rgba(149,184,95,.015) 78%,rgba(149,184,95,0) 100%),
+    radial-gradient(28% 28% at 37.1% 67.8%,rgba(255,170,46,.17) 0%,rgba(255,170,46,.146) 18%,rgba(255,170,46,.099) 38%,rgba(255,170,46,.049) 57%,rgba(255,170,46,.015) 78%,rgba(255,170,46,0) 100%),
+    radial-gradient(28% 28% at 29.1% 56.8%,rgba(255,127,96,.187) 0%,rgba(255,127,96,.161) 18%,rgba(255,127,96,.108) 38%,rgba(255,127,96,.054) 57%,rgba(255,127,96,.017) 78%,rgba(255,127,96,0) 100%),
+    radial-gradient(28% 28% at 29.1% 43.2%,rgba(255,92,138,.204) 0%,rgba(255,92,138,.175) 18%,rgba(255,92,138,.118) 38%,rgba(255,92,138,.059) 57%,rgba(255,92,138,.018) 78%,rgba(255,92,138,0) 100%),
+    radial-gradient(28% 28% at 37.1% 32.2%,rgba(180,89,199,.212) 0%,rgba(180,89,199,.183) 18%,rgba(180,89,199,.123) 38%,rgba(180,89,199,.062) 57%,rgba(180,89,199,.019) 78%,rgba(180,89,199,0) 100%)}
+  .caustic .band{background:linear-gradient(180deg,rgba(108,88,254,0) 0%,rgba(104,93,253,.014) 10%,rgba(94,103,249,.065) 20%,rgba(76,125,238,.141) 30%,rgba(64,153,211,.178) 40%,rgba(94,171,161,.179) 50%,rgba(176,157,114,.171) 60%,rgba(233,129,109,.135) 70%,rgba(250,110,120,.068) 80%,rgba(254,100,129,.018) 90%,rgba(255,95,135,0) 100%)}
+  .caustic .b2{background:linear-gradient(180deg,rgba(100,96,251,0) 0%,rgba(94,103,248,.013) 10%,rgba(86,115,241,.049) 20%,rgba(79,131,227,.104) 30%,rgba(84,147,202,.151) 40%,rgba(113,157,165,.168) 50%,rgba(168,151,130,.149) 60%,rgba(211,136,117,.103) 70%,rgba(236,121,117,.05) 80%,rgba(248,110,122,.013) 90%,rgba(253,103,127,0) 100%)}
+}
+html.dl-rest .caustic i{animation-play-state:paused}
 @keyframes prismTurn{to{transform:rotate(360deg)}}
 @keyframes prismBand1{from{transform:translate3d(-4vw,-2vh,0) rotate(-17deg)}to{transform:translate3d(6vw,4vh,0) rotate(-13deg)}}
 @keyframes prismBand2{from{transform:translate3d(5vw,2vh,0) rotate(-11deg)}to{transform:translate3d(-6vw,-3vh,0) rotate(-15deg)}}
@@ -2618,6 +2651,9 @@ window.THEME_FX = (function(){
       }
       if (REDUCED){ place(); api.on(window, 'scroll', () => requestAnimationFrame(place), { passive: true }); }
       else api.loop(now => {
+        /* while the tool builds a page, a day or a sheet (Kit.rest(), html.dl-rest) the light holds still: no transform on
+           the caustic layer and no layout lookups of every panel mid-build. It eases on from where it stood. */
+        if (api.root.classList.contains('dl-rest')){ dirty = true; return; }
         if (now - lastInput > 2600){ const t = now / 1000; L.tx = Math.sin(t * .11) * .75; L.ty = Math.cos(t * .083) * .55 - .25; }
         L.x += (L.tx - L.x) * .06; L.y += (L.ty - L.y) * .06;
         if (dirty || Math.abs(L.x - px) > .0015 || Math.abs(L.y - py) > .0015){ px = L.x; py = L.y; dirty = false; place(); }
